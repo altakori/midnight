@@ -36,5 +36,6 @@ npm run build
 - `src/content.ts`: 검문 장면과 분기 선택
 - `src/main.ts`: 동사 장부, 접근 가능한 DOM UI, localStorage 이어하기/재시작
 - `src/style.css`: 종이·활자·빨간 교정 UI와 반응형 레이아웃
+- `public/art/footnote-girl.webp`: Grok이 설계한 미술 프롬프트로 제작한 각주 소녀 원고 삽화
 
 저장 데이터는 브라우저 `localStorage`의 `footnote-girl-escape-save`에 버전과 함께 보관됩니다. 외부 런타임 에셋은 사용하지 않습니다.
