@@ -1,145 +1,47 @@
 import './style.css';
-import { choiceKind, choose, deserialize, initialState, resolveEnding, restoreVerb, serialize, VERBS, verbIsAvailable, type Choice, type Ending, type GameState, type Verb } from './engine';
-import { sceneMap } from './content';
+import { chooseEnding, CLUES, combine, deserialize, fail, initialState, inspect, inspectHotspot, ITEM_INFO, LOCATION_ORDER, LOCATIONS, move, serialize, useItem, visibleHotspots, type Ending, type GameState, type ItemId } from './engine';
 
-const KEY = 'footnote-girl-escape-save';
-let state: GameState = load();
+const SAVE_KEY = 'unwritten-village-submission-v5';
 const app = document.querySelector<HTMLDivElement>('#app')!;
+let state = load();
+let selected: ItemId | undefined;
+let combineFirst: ItemId | undefined;
+let journalOpen = false;
+let paused = false;
+let introOpen = !sessionStorage.getItem('unwritten-intro-seen');
 
-type ArtKey = Verb | 'calm' | 'suspicion' | 'trust-state' | 'deadline';
-const ART: Record<ArtKey, { src: string; alt: string; label: string }> = {
-  ask: { src: './art/state/verb-ask.webp', alt: '각주 소녀가 얼굴 없는 교정관에게 질문하는 먹선 삽화', label: '묻기 · 교정관의 시선' },
-  hide: { src: './art/state/verb-hide.webp', alt: '각주 소녀가 여러 장의 원고 뒤에 몸을 숨기는 먹선 삽화', label: '숨기기 · 원고 뒤의 소녀' },
-  trust: { src: './art/state/verb-trust.webp', alt: '각주 소녀가 내민 손을 향해 붉은 길을 따라가는 먹선 삽화', label: '믿기 · 여백을 건너는 길' },
-  forge: { src: './art/state/verb-forge.webp', alt: '빈 원고 위에 거짓 도장을 찍는 손의 먹선 삽화', label: '위조하기 · 거짓 승인의 흔적' },
-  reveal: { src: './art/state/verb-reveal.webp', alt: '각주 소녀가 종이 장막을 열어 붉은 삭제선을 드러내는 먹선 삽화', label: '드러내기 · 삭제선의 공개' },
-  cut: { src: './art/state/verb-cut.webp', alt: '가위가 교정청 감시 카메라의 검은 선을 끊는 먹선 삽화', label: '끊기 · 감시선 절단' },
-  calm: { src: './art/state/status-calm.webp', alt: '각주 소녀가 평온한 원고 가장자리에 서 있는 먹선 삽화', label: '현재 상태 · 아직 미정' },
-  suspicion: { src: './art/state/status-suspicion.webp', alt: '거대한 붉은 교정자의 눈이 각주 소녀를 감시하는 삽화', label: '위험 · 교정자의 시선이 닿음' },
-  'trust-state': { src: './art/state/status-trust.webp', alt: '각주 소녀가 신뢰를 잃고 빈 여백 속으로 흐려지는 삽화', label: '위험 · 소녀가 여백으로 물러남' },
-  deadline: { src: './art/state/status-deadline.webp', alt: '검은 인쇄 롤러와 잉크가 원고를 집어삼키는 삽화', label: '위험 · 최종 인쇄 임박' },
-};
-Object.values(ART).forEach((art) => { const image = new Image(); image.src = art.src; });
-
-function load(): GameState {
-  const raw = localStorage.getItem(KEY);
-  if (!raw) return initialState();
-  try { return deserialize(raw); }
-  catch { localStorage.removeItem(KEY); return initialState(); }
-}
-function save(): void { localStorage.setItem(KEY, serialize(state)); }
-function restart(): void { state = initialState(); save(); render(); }
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
-}
-
-function verbStage(verb: Verb): string {
-  const uses = state.verbUses[verb];
-  if (uses >= 3) return '삭제';
-  if (uses === 2) return '비용';
-  if (uses === 1) return '경고';
-  return '미사용';
-}
-
-function renderLedger(): string {
-  return `<div class="ledger"><b>동사 장부</b><small>기록 → 경고 → 비용 → 삭제</small>${VERBS.map(({ key, label }) => {
-    const uses = state.verbUses[key];
-    const stage = verbStage(key);
-    const available = verbIsAvailable(state, key);
-    const restore = uses >= 3 && state.ink > 0 ? `<button class="restore" data-restore="${key}">수정액</button>` : '';
-    return `<div class="ledger-row stage-${uses >= 3 ? 'crossed' : uses}"><span>${label}</span><i>${stage}${available ? ' · 보유' : ''}</i>${restore}</div>`;
-  }).join('')}</div>`;
-}
-
-function currentArtKey(): ArtKey {
-  if (state.ended === 'deadline' || state.time <= 2) return 'deadline';
-  if (state.ended === 'caught' || state.suspicion >= 6) return 'suspicion';
-  if (state.ended === 'forgotten' || state.trust <= 0) return 'trust-state';
-  return state.lastVerb ?? 'calm';
-}
-
-function resourceForecast(choice: Choice): string {
-  const kind = choiceKind(state, choice);
-  const extra = kind === 'cost' ? 1 : 0;
-  const values = [`시간 -${(choice.time ?? 1) + extra}`];
-  const suspicion = (choice.suspicion ?? 0) + extra;
-  if (suspicion) values.push(`의심 ${suspicion > 0 ? '+' : ''}${suspicion}`);
-  if (choice.trust) values.push(`신뢰 ${choice.trust > 0 ? '+' : ''}${choice.trust}`);
-  return values.join(' · ');
-}
-
-function renderStateArt(): string {
-  const art = ART[currentArtKey()];
-  return `<figure class="state-art" aria-live="polite"><img id="state-art-image" src="${art.src}" alt="${art.alt}" width="960" height="540" decoding="async"><figcaption><b id="state-art-label">${art.label}</b><span id="state-art-detail">${escapeHtml(state.feedback)}</span></figcaption></figure>`;
-}
-
+function load(): GameState { try { const raw = localStorage.getItem(SAVE_KEY); return raw ? deserialize(raw) : initialState(); } catch { return initialState(); } }
+function save(): void { localStorage.setItem(SAVE_KEY, serialize(state)); }
+function commit(next: GameState): void { state = next; selected = undefined; combineFirst = undefined; save(); render(); }
+function escapeHtml(text: string): string { return text.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!); }
+function currentAct(): number { if (state.ending || state.fragments.length === 3) return 3; if (state.archiveLit) return 2; return 1; }
+function objective(): string { if (state.ending) return state.ending === 'restore' ? '지워진 이름들이 본문으로 돌아왔다.' : '마지막 삭제가 끝났다.'; if (!state.unlocked) return '기록관을 열 도구와 어둠을 밝힐 빛을 찾아라.'; if (!state.archiveLit) return '열린 기록관 서고에서 삭제 명단을 밝혀라.'; if (state.fragments.length < 3) return `마을에 흩어진 이름을 복원하라 · ${state.fragments.length}/3`; return '편집자의 방에서 마지막 문장을 결정하라.'; }
+function hint(): string { if (state.failedActions < 3) return '배경 위에 표시된 실제 사물을 조사하고, 소지품의 형태와 장소를 연결해 보자.'; if (state.inventory.includes('bent-type') && state.inventory.includes('red-thread')) return '휘어진 활자에 긴 실을 단단히 묶을 수 있다.'; if (state.inventory.includes('empty-lamp') && state.inventory.includes('glowing-mushroom')) return '빈 등잔은 숲의 푸른 빛을 기다린다.'; if (state.inventory.includes('hook-type')) return '우물 아래에서 금속이 부딪히는 소리가 난다.'; if (state.inventory.includes('restored-slate')) return '복원한 석판을 원래 아이의 자리로 돌려놓자.'; if (state.inventory.includes('witness-candle')) return '증언의 촛불은 예배당 제단에서 타야 한다.'; if (state.inventory.includes('proof-boat')) return '납판을 실은 배를 검은 강에 띄우자.'; return '기록을 열어 이미 본 단서들을 연결해 보자.'; }
+function itemCard(id: ItemId): string { return `<article class="item-card ${selected === id ? 'selected' : ''} ${combineFirst === id ? 'combine-first' : ''}"><button data-item="${id}" class="item-main"><i>${ITEM_INFO[id].icon}</i><span>${ITEM_INFO[id].name}</span></button><div><button data-inspect-item="${id}">조사</button><button data-combine="${id}">${combineFirst === id ? '취소' : combineFirst ? '합치기' : '조합'}</button></div></article>`; }
+function hotspotMarkup(): string { const spots = visibleHotspots(state); return spots.map((spot, index) => `<button class="world-hotspot hotspot-${index % 4}" data-hotspot="${spot.id}" aria-label="${spot.label} 조사"><i></i><span>${spot.label}</span></button>`).join(''); }
+function scene(): string { const location = LOCATIONS[state.location]; const canUse = ['well', 'archive-entrance', 'archive-stacks', 'classroom', 'chapel', 'river'].includes(state.location); const artUrl = `${import.meta.env.BASE_URL}art/scenes/${location.art}.webp`; return `<div class="scene-bg" style="background-image:url('${artUrl}')"></div><div class="vignette"></div><div class="red-editor ${state.shadowSeen ? 'visible' : ''}" aria-hidden="true"><i></i></div>${hotspotMarkup()}${canUse ? `<button class="scene-use" data-use-scene>${selected ? `${ITEM_INFO[selected].name} 사용` : '이곳에 물건 사용'}</button>` : ''}<div class="red-scratch one"></div><div class="red-scratch two"></div>`; }
+function journal(): string { const entries = [...state.clues].map((id) => { const clue = CLUES.find((entry) => entry.id === id); return clue ? `<article><small>${LOCATIONS[clue.location].title}</small><h3>${clue.title}</h3><p>${clue.text}</p></article>` : ''; }).join(''); return `<aside class="overlay journal"><button data-journal class="close">닫기</button><span class="eyebrow">조사 기록 ${state.clues.size}/12</span><h2>지워지지 않은 문장</h2><p>정답이 아니라 내가 직접 확인한 것만 남겼다.</p><div class="journal-grid">${entries || '<i>아직 기록한 단서가 없다.</i>'}</div></aside>`; }
+function ending(): string { if (!state.ending) return ''; const restore = state.ending === 'restore'; return `<section class="ending-screen ${state.ending}"><div><small>${restore ? '개정판 1쇄' : '삭제 완료'}</small><h2>${restore ? '이름은 다시 문장이 되었다' : '마지막 빈칸은 나였다'}</h2><p>${escapeHtml(state.message)}</p><b>${restore ? '세 개의 창문에 불이 켜지고, 마을은 처음으로 내일을 맞았다.' : '명단에서 내 이름이 사라지자 편집자의 붉은 선도 멈췄다.'}</b><button data-reset>다시 조사하기</button></div></section>`; }
 function render(): void {
-  const scene = sceneMap.get(state.sceneId)!;
-  const art = scene.id === 'desk' || scene.id === 'final'
-    ? `<figure class="scene-art ${scene.id === 'final' ? 'scene-art-final' : ''}"><img src="./art/footnote-girl.webp" alt="찢어진 원고의 삭제선 안에서 각주 소녀가 손을 내미는 먹선 삽화" width="1672" height="941" ${scene.id === 'desk' ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"><figcaption>삭제된 각주 17번</figcaption></figure>`
-    : '';
-  app.innerHTML = `<main class="shell"><header><div><span class="eyebrow">문장특별시 / 원고 FG-02</span><h1>각주 소녀 탈옥</h1></div><div class="actions"><span>${state.turn ? '자동 저장됨' : '새 원고'}</span><button id="restart">다시 시작</button></div></header><section class="layout"><aside aria-label="탈옥 상태"><div class="clock"><small>최종 인쇄까지</small><strong>${Math.max(0, state.time)}<i>분</i></strong></div><div class="resource"><b>의심</b><span class="meter danger"><i style="width:${Math.min(100, state.suspicion / 8 * 100)}%"></i></span><em>${state.suspicion}/8</em></div><div class="resource"><b>소녀 신뢰</b><span class="meter trust"><i style="width:${Math.min(100, Math.max(0, state.trust) / 6 * 100)}%"></i></span><em>${state.trust}</em></div><div class="fluid">● 수정액 <b>${state.ink}</b><small>삭제 동사 복원 · 시간 -2 / 의심 +2</small></div><div class="checkpoints"><b>탈옥 단계</b>${[1,2,3].map((n) => `<span class="${state.checkpoint >= n ? 'done' : ''}">${n}</span>`).join('')}</div>${renderLedger()}</aside><article class="page"><div class="meta"><span>CHECKPOINT 0${scene.checkpoint}</span><span>${scene.kicker}</span></div>${art}<h2>${scene.title}</h2><div class="prose">${scene.body.map((line) => `<p>${line}</p>`).join('')}</div><div class="feedback" role="status" aria-live="polite">${escapeHtml(state.feedback)}</div>${scene.note ? `<aside class="note"><b>빨간 연필</b>${scene.note}</aside>` : ''}${renderStateArt()}${state.ended ? renderEnding(state.ended) : renderChoices(scene.choices)}<footer>필요한 동사를 지켜내십시오. <span>Tab과 Enter로도 플레이할 수 있습니다.</span></footer></article></section></main>`;
+  const location = LOCATIONS[state.location];
+  const number = LOCATION_ORDER.indexOf(state.location) + 1;
+  app.innerHTML = `<main class="game ${paused ? 'paused' : ''} ${state.ending ? 'ended' : ''}"><header><div><span class="eyebrow">문장특별시 · 야간 조사 기록 09</span><h1>쓰이지 않은 <em>마을</em></h1></div><nav><span class="save">● 자동 저장</span><button data-journal>기록 ${state.clues.size}/12</button><button data-pause>${paused ? '계속하기' : '일시정지'}</button><button data-reset>초기화</button></nav></header><section class="viewport" aria-label="${location.title} 1인칭 탐험 장면"><div class="place"><small>장소 ${String(number).padStart(2, '0')} · ACT ${currentAct()}</small><h2>${location.title}</h2><p>${location.subtitle}</p></div>${scene()}<button class="turn left" data-turn="-1" aria-label="왼쪽 장소로 이동">‹<span>왼쪽</span></button><button class="turn right" data-turn="1" aria-label="오른쪽 장소로 이동">›<span>오른쪽</span></button><p class="message" role="status">${escapeHtml(state.message)}</p><div class="tension"><span>편집자의 시선</span><b><i style="width:${state.tension}%"></i></b></div></section><section class="lower"><aside class="objective"><span class="eyebrow">현재 목표</span><strong>${objective()}</strong><small>${hint()}</small><div class="fragment-row"><i class="${state.fragments.includes('child-name') ? 'found' : ''}">아이</i><i class="${state.fragments.includes('witness-name') ? 'found' : ''}">증인</i><i class="${state.fragments.includes('third-name') ? 'found' : ''}">서명</i></div></aside><section class="inventory"><div class="inventory-head"><b>소지품 ${state.inventory.length}</b><span>${selected ? `${ITEM_INFO[selected].name} 선택됨` : combineFirst ? '합칠 두 번째 물건 선택' : '선택 · 조사 · 조합'}</span></div><div class="items">${state.inventory.length ? state.inventory.map(itemCard).join('') : '<i class="empty">주머니에는 종이 먼지만 남아 있다.</i>'}</div></section></section>${state.archiveLit && state.fragments.length === 3 && state.location === 'editor-room' && !state.ending ? `<section class="final-choice"><span>마지막 원고</span><h2>세 이름과 나의 이름 중 무엇을 본문에 남길 것인가?</h2><button data-ending="restore">세 이름을 되돌린다</button><button data-ending="erase">명단과 함께 나를 지운다</button></section>` : ''}${journalOpen ? journal() : ''}${paused ? '<aside class="overlay pause"><h2>조사를 멈췄다</h2><button data-pause>계속하기</button></aside>' : ''}${introOpen ? '<aside class="overlay intro"><small>야간 조사 지침</small><h2>사라진 이름을 찾으세요</h2><ol><li>좌우 화살표로 장소를 둘러봅니다.</li><li>배경 위 사물 이름을 눌러 조사합니다.</li><li>소지품을 조합하고 원래 장소에 사용합니다.</li></ol><button data-intro>조사 시작</button></aside>' : ''}${ending()}</main>`;
   bind();
 }
-
-function renderChoices(choices: Choice[]): string {
-  return `<div class="choices"><div class="label">다음 동사를 고르십시오 <span>선택지에 초점을 두면 예상 삽화와 수치가 보입니다</span></div>${choices.map((choice) => {
-    const kind = choiceKind(state, choice);
-    const final = choice.id.startsWith('final-');
-    const comboReady = !final || choice.id === 'final-fail' || choice.contradiction?.every((verb) => verbIsAvailable(state, verb));
-    const locked = kind === 'locked' || (final && !comboReady);
-    const crossed = kind === 'crossed';
-    return `<button class="choice ${locked ? 'locked' : kind}" data-id="${choice.id}" data-verb="${choice.verb}" data-forecast="${resourceForecast(choice)}" ${locked || crossed ? 'disabled' : ''}><span class="mark">${crossed ? '×' : locked ? '▣' : kind === 'cost' ? '!!' : kind === 'warning' ? '!' : '→'}</span><span><strong>${choice.label}</strong><small>${choice.hint}${kind === 'warning' ? ' · 붉은 경고' : ''}${kind === 'cost' ? ' · 추가 시간 -1 / 의심 +1, 이후 삭제' : ''}${crossed ? ' · 장부에서 수정액으로 복원' : ''}${locked ? ' · 필요한 동사/신뢰 부족' : ''}</small></span><em>${crossed ? '삭제됨' : locked ? '잠김' : kind === 'cost' ? '마지막 사용' : kind === 'warning' ? '경고' : ''}</em></button>`;
-  }).join('')}</div>`;
-}
-
-function renderEnding(ending: Ending): string {
-  const data: Record<Ending, [string, string]> = {
-    'quiet-escape': ['조용한 탈출', '소녀는 숨겨졌기에 드러날 수 있었다. 모순이 인쇄기 뒤의 문을 열었다.'],
-    'public-escape': ['본문 밖의 시민', '소녀는 당신을 믿었고, 위조된 출입증은 처음으로 진짜 이름이 되었다.'],
-    caught: ['붉은 연필의 포획', '의심이 한계에 닿았거나 필요한 모순을 지키지 못했다.'],
-    forgotten: ['남겨진 각주', '신뢰가 끊어졌다. 소녀는 스스로 여백으로 돌아갔다.'],
-    deadline: ['자정 인쇄', '카운터가 00이 되었다. 종이는 소녀를 기다려주지 않았다.'],
-  };
-  return `<div class="ending"><span>발행 결과</span><h3>${data[ending][0]}</h3><p>${data[ending][1]}</p><p class="feedback">마지막 흔적: ${escapeHtml(state.log.slice(-3).join(' / ') || '아직 쓰인 문장이 없습니다.')}</p><button class="primary" id="restart-end">다른 전략으로 다시 쓰기</button></div>`;
-}
-
+function useScene(): void { if (!selected) commit(fail(state, '먼저 소지품에서 사용할 물건을 선택하자.')); else commit(useItem(state, selected, state.location)); }
+function resetGame(): void { if (confirm('모든 조사 기록을 지우고 처음부터 시작할까요?')) { localStorage.removeItem(SAVE_KEY); state = initialState(); selected = undefined; combineFirst = undefined; journalOpen = false; paused = false; introOpen = true; render(); } }
 function bind(): void {
-  document.querySelector('#restart')?.addEventListener('click', restart);
-  document.querySelector('#restart-end')?.addEventListener('click', restart);
-  document.querySelectorAll<HTMLButtonElement>('[data-restore]').forEach((button) => button.addEventListener('click', () => {
-    state = restoreVerb(state, button.dataset.restore as Verb); save(); render();
-  }));
-
-  const image = document.querySelector<HTMLImageElement>('#state-art-image');
-  const label = document.querySelector<HTMLElement>('#state-art-label');
-  const detail = document.querySelector<HTMLElement>('#state-art-detail');
-  const restoreArt = () => {
-    if (!image || !label || !detail) return;
-    const art = ART[currentArtKey()];
-    image.src = art.src; image.alt = art.alt;
-    label.textContent = art.label; detail.textContent = state.feedback;
-  };
-
-  document.querySelectorAll<HTMLButtonElement>('[data-id]').forEach((button) => {
-    const preview = () => {
-      if (!image || !label || !detail || button.disabled) return;
-      const art = ART[button.dataset.verb as Verb];
-      image.src = art.src; image.alt = art.alt;
-      label.textContent = `선택 미리보기 · ${art.label}`;
-      detail.textContent = button.dataset.forecast ?? '';
-    };
-    button.addEventListener('mouseenter', preview);
-    button.addEventListener('focus', preview);
-    button.addEventListener('mouseleave', restoreArt);
-    button.addEventListener('blur', restoreArt);
-    button.addEventListener('click', () => {
-      const choice = sceneMap.get(state.sceneId)!.choices.find((candidate) => candidate.id === button.dataset.id)!;
-      if (choice.id.startsWith('final-')) state.ended = resolveEnding(state, choice) ?? 'caught';
-      else state = choose(state, choice);
-      save(); render();
-    });
-  });
+  document.querySelectorAll<HTMLElement>('[data-turn]').forEach((button) => button.onclick = () => { if (!paused) commit(move(state, Number(button.dataset.turn) as -1 | 1)); });
+  document.querySelectorAll<HTMLElement>('[data-hotspot]').forEach((button) => button.onclick = () => commit(inspectHotspot(state, button.dataset.hotspot!)));
+  document.querySelector<HTMLElement>('[data-use-scene]')?.addEventListener('click', useScene);
+  document.querySelectorAll<HTMLElement>('[data-item]').forEach((button) => button.onclick = () => { selected = selected === button.dataset.item ? undefined : button.dataset.item as ItemId; combineFirst = undefined; render(); });
+  document.querySelectorAll<HTMLElement>('[data-inspect-item]').forEach((button) => button.onclick = () => commit(inspect(state, button.dataset.inspectItem as ItemId)));
+  document.querySelectorAll<HTMLElement>('[data-combine]').forEach((button) => button.onclick = () => { const id = button.dataset.combine as ItemId; if (!combineFirst) { combineFirst = id; selected = undefined; render(); } else if (combineFirst === id) { combineFirst = undefined; render(); } else { const first = combineFirst; combineFirst = undefined; commit(combine(state, first, id)); } });
+  document.querySelectorAll<HTMLElement>('[data-ending]').forEach((button) => button.onclick = () => commit(chooseEnding(state, button.dataset.ending as Ending)));
+  document.querySelectorAll<HTMLElement>('[data-journal]').forEach((button) => button.onclick = () => { journalOpen = !journalOpen; render(); });
+  document.querySelectorAll<HTMLElement>('[data-pause]').forEach((button) => button.onclick = () => { paused = !paused; render(); });
+  document.querySelectorAll<HTMLElement>('[data-intro]').forEach((button) => button.onclick = () => { introOpen = false; sessionStorage.setItem('unwritten-intro-seen', '1'); render(); });
+  document.querySelectorAll<HTMLElement>('[data-reset]').forEach((button) => button.onclick = resetGame);
 }
-
+window.addEventListener('keydown', (event) => { if (introOpen || paused || journalOpen || state.ending) return; if (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft') commit(move(state, -1)); if (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight') commit(move(state, 1)); if (event.key.toLowerCase() === 'e' && ['well', 'archive-entrance', 'archive-stacks', 'classroom', 'chapel', 'river'].includes(state.location)) useScene(); });
 render();
