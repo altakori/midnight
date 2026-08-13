@@ -37,6 +37,7 @@ export interface GameState {
   verbs: Verb[];
   log: string[];
   feedback: string;
+  lastVerb?: Verb;
   ended?: Ending;
 }
 
@@ -111,6 +112,7 @@ export function choose(state: GameState, choice: Choice): GameState {
   next.suspicion = Math.max(0, next.suspicion + (choice.suspicion ?? 0) + repeatSuspicion);
   next.trust += choice.trust ?? 0;
   next.verbUses[choice.verb] += 1;
+  next.lastVerb = choice.verb;
   if (!next.verbs.includes(choice.verb)) next.verbs.push(choice.verb);
   next.checkpoint = Math.max(next.checkpoint, checkpointFor(next.sceneId));
 

@@ -81,5 +81,6 @@ describe('Footnote Girl Escape', () => {
     const state = route(['desk-trust', 'cp1-forge', 'corridor-trust']);
     const restored = deserialize(serialize(state));
     expect(restored).toEqual(state);
+    expect(restored.lastVerb).toBe('trust');
   });
 });
