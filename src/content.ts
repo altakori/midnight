@@ -1,12 +1,90 @@
-import type {Scene} from './engine';
-export const scenes:Scene[]=[
-{id:'wake',chapter:'01 / 여백에서',kicker:'0호선 미정역 · 06:12',title:'당신의 이름은 아직 인쇄되지 않았다',body:['눈을 뜨자 역의 벽면이 원고지처럼 접혀 있다. 손목에는 「미정」 배지.','방송이 낮게 반복된다. “당신은 자유롭게 선택할 수 있습니다. 처음에는.”'],note:'편집자 주: 주인공의 목적을 한 줄로 고정할 것.',choices:[{id:'wake-help',label:'옆 사람에게 역을 묻는다',hint:'모르는 사람과 문장을 나눈다.',axis:'solidarity',delta:1,kind:'normal',next:'platform'},{id:'wake-map',label:'노선도를 훔쳐본다',hint:'대답 대신 정보를 챙긴다.',axis:'honesty',delta:-1,kind:'normal',next:'platform'}]},
-{id:'platform',chapter:'02 / 첫 교정',kicker:'미정역 플랫폼',title:'행선지는 중앙인쇄소',body:['검은 연필로 그어진 화살표가 중앙인쇄소를 가리킨다.','표를 끊으려는 순간, 안내원의 명찰에서 글자가 떨어진다.'],note:'빨간 메모: “목적지는 유지. 수단은 관찰한다.”',choices:[{id:'platform-ask',label:'정식 승차권을 요구한다',hint:'규칙은 누군가를 지킨다.',axis:'obedience',delta:1,kind:'normal',next:'agency'},{id:'platform-slip',label:'개찰구 아래로 미끄러진다',hint:'규칙보다 도착이 먼저다.',axis:'obedience',delta:-1,kind:'normal',next:'agency'}]},
-{id:'agency',chapter:'03 / 일관성 관리',kicker:'중앙교정청 · 대합실',title:'선택지는 보관되지 않습니다',body:['교정청 직원이 당신의 기록을 펼친다. “방금 당신은 규칙을 믿는다고 썼죠.”','책상 위 문장 하나가 천천히 지워진다.'],note:'삭제 예고: 저항하는 사람의 선택은 다음 장에서 축소됩니다.',choices:[{id:'agency-sign',label:'일관성 서약에 서명한다',hint:'안전한 문장에는 도장이 찍힌다.',axis:'obedience',delta:1,kind:'normal',next:'archive'},{id:'agency-refuse',label:'서약서를 찢는다',hint:'모순은 아직 살아 있다.',axis:'obedience',delta:-1,kind:'normal',next:'archive',contradiction:true}]},
-{id:'archive',chapter:'04 / 각주 보관소',kicker:'문서고 B-17',title:'각주 속 소녀',body:['서류 더미 사이, 작은 글씨로 사람이 말을 건다.','“저는 본문에 들어갈 수 없어요. 그래서 뭐든 말할 수 있죠.” 소녀가 웃는다.'],note:'각주 소녀: “중앙인쇄소에 가면, 네가 지운 것을 다시 읽어.”',choices:[{id:'archive-listen',label:'소녀의 각주를 따라간다',hint:'본문 바깥의 목소리를 믿는다.',axis:'solidarity',delta:1,kind:'normal',next:'street'},{id:'archive-report',label:'소녀의 정보를 교정청에 넘긴다',hint:'보이지 않는 사람도 쓸모는 있다.',axis:'solidarity',delta:-1,kind:'normal',next:'street'}]},
-{id:'street',chapter:'05 / 문장특별시',kicker:'도시 외곽 · 07:44',title:'도시는 당신을 닮아간다',body:['거리의 간판들이 당신의 선택을 따라 바뀐다. “협력”은 “이용”으로 덧칠되고, “저항”은 여백으로 밀려난다.','멀리서 빨간 연필이 선을 긋는다.'],note:'편집자 주: 독자가 한 축을 고르면 다른 축의 미래를 닫아 긴장감을 만들 것.',choices:[{id:'street-share',label:'배지를 군중과 나눈다',hint:'정체는 공유할수록 선명해진다.',axis:'solidarity',delta:1,kind:'normal',next:'crossing'},{id:'street-sell',label:'배지를 정보와 바꾼다',hint:'이름은 가장 비싼 잉크다.',axis:'solidarity',delta:-1,kind:'normal',next:'crossing'}]},
-{id:'crossing',chapter:'06 / 삭제선',kicker:'문장특별시 횡단보도',title:'이 인물에게 어울리지 않는 문장',body:['신호등 아래 세 갈래 길이 열린다. 당신이 반복해 온 태도와 반대되는 문장 위로 붉은 선이 그어져 있다.','삭제된 선택은 사라지지 않았다. 수정액을 바르면 단 한 번, 다시 읽을 수 있다.'],note:'삭제 시스템: 붉은 줄이 그어진 선택지를 누르면 수정액을 사용해 복원합니다. 복원된 문장을 고르면 원고에 모순이 생깁니다.',choices:[{id:'crossing-care',label:'넘어진 사람을 일으킨다',hint:'연대의 문장.',axis:'solidarity',delta:1,kind:'normal',next:'printshop',contradiction:true},{id:'crossing-use',label:'넘어진 사람의 승차권을 챙긴다',hint:'이용의 문장.',axis:'solidarity',delta:-1,kind:'normal',next:'printshop',contradiction:true},{id:'crossing-ask',label:'왜 쓰러졌는지 먼저 묻는다',hint:'최근 행동과 일치하지 않습니다. 그래도 선택할 수 있습니다.',axis:'honesty',delta:1,kind:'warning',next:'printshop'},{id:'crossing-bypass',label:'신호가 바뀌기 전에 건넌다',hint:'교정선 사이를 통과한다.',axis:'obedience',delta:-1,kind:'normal',next:'printshop'}]},
-{id:'printshop',chapter:'07 / 최종 인쇄',kicker:'중앙인쇄소 · 08:01',title:'마지막 문장에는 대가가 따른다',body:['인쇄기의 롤러가 도시의 마지막 문장을 밀어낸다. 각주 소녀가 남은 수정액을 바라본다.','“설정과 다른 문장을 쓰려면 잉크를 내야 해요. 그래도 쓸 건가요?”'],note:'2단계 교정: 흐려진 선택은 아직 고를 수 있지만 수정액을 소모합니다.',choices:[{id:'print-sign',label:'완성본에 서명한다',hint:'정해진 인물이 된다.',axis:'obedience',delta:1,kind:'normal',next:'end'},{id:'print-margin',label:'여백에 새 문장을 쓴다',hint:'수정액을 써서 인쇄되지 않을 가능성을 남긴다.',axis:'solidarity',delta:1,kind:'ink',cost:1,next:'end',contradiction:true}]},
-{id:'end',chapter:'08 / 발행 부수 1',kicker:'마지막 장',title:'인쇄기가 멈추었다',body:['종이가 나오는 소리 대신, 아주 작은 숨소리가 난다.','당신의 기록은 네 가지 방식으로 끝날 수 있다.'],note:'결말은 지금까지의 기울기와 모순의 흔적을 읽어 결정됩니다.',choices:[]}
+import type { Scene } from './engine';
+
+export const scenes: Scene[] = [
+  {
+    id: 'desk', checkpoint: 0, kicker: '23:51 · 탈옥 준비 / 최종 인쇄 9분 전',
+    title: '각주 소녀가 삭제선 안쪽에서 두드린다',
+    body: [
+      '자정이 되면 각주 17번과 그 안의 소녀는 영구 삭제된다. 세 개의 검문을 통과해 그녀를 원고 밖으로 빼내야 한다.',
+      '편집자는 당신이 쓰는 동사를 센다. 한 번은 기록, 두 번은 경고, 세 번은 대가, 그 뒤에는 삭제다.',
+    ],
+    note: '마지막 문은 모순으로만 열린다. 숨기면서 드러내거나, 믿으면서 위조하라.',
+    choices: [
+      { id: 'desk-hide', label: '소녀를 원고 더미에 숨긴다', hint: '조용한 탈출의 첫 동사. 시간 -1.', next: 'checkpoint-1', verb: 'hide' },
+      { id: 'desk-trust', label: '소녀가 알려준 비상구를 믿는다', hint: '공개 탈출의 첫 동사. 신뢰 +1.', next: 'checkpoint-1', verb: 'trust', trust: 1 },
+      { id: 'desk-ask', label: '경비에게 인쇄실 위치를 묻는다', hint: '정보는 빠르지만 의심 +2.', next: 'checkpoint-1', verb: 'ask', suspicion: 2 },
+    ],
+  },
+  {
+    id: 'checkpoint-1', checkpoint: 1, kicker: '23:53 · 1차 검문 / 이름 대조',
+    title: '명단에는 당신만 있고 소녀는 없다',
+    body: [
+      '교정관이 빈 명찰을 가리킨다. “혼자 왔습니까?” 소녀의 손가락이 원고 틈에서 떨린다.',
+      '방금 쓴 동사를 반복하면 편집자가 밑줄을 긋기 시작한다.',
+    ],
+    note: '즉시 결과를 보라. 안전한 반복은 다음 장면의 선택지를 비싸게 만든다.',
+    choices: [
+      { id: 'cp1-hide', label: '원고를 몸 뒤로 다시 숨긴다', hint: '의심 -1. 숨기기를 반복한다.', next: 'corridor', verb: 'hide', suspicion: -1 },
+      { id: 'cp1-forge', label: '명단에 소녀의 이름을 위조한다', hint: '공개 탈출의 반쪽. 의심 +1.', next: 'corridor', verb: 'forge', suspicion: 1 },
+      { id: 'cp1-reveal', label: '삭제 명령서를 꺼내 보여준다', hint: '드러내기의 첫 기록. 의심 +2, 신뢰 +1.', next: 'corridor', verb: 'reveal', suspicion: 2, trust: 1 },
+    ],
+  },
+  {
+    id: 'corridor', checkpoint: 1, kicker: '23:55 · 교정 복도 / 카메라 회전 중',
+    title: '빨간 렌즈가 원고 더미를 훑는다',
+    body: [
+      '카메라가 세 번 회전하면 검문대에 경보가 간다. 소녀가 묻는다. “내 말을 믿어요, 아니면 또 숨길 건가요?”',
+      '여기서 한 동사에 집착하면 마지막에 그 동사를 잃을 수 있다.',
+    ],
+    note: '동사 장부를 확인하라. 삭제된 동사는 최종 조합에 사용할 수 없다.',
+    choices: [
+      { id: 'corridor-cut', label: '카메라 전선을 끊는다', hint: '의심 -2. 시간을 아끼지만 탈출 조합에는 쓰이지 않는다.', next: 'checkpoint-2', verb: 'cut', suspicion: -2 },
+      { id: 'corridor-hide', label: '붉은 렌즈 아래서 숨는다', hint: '숨기기를 다시 사용한다.', next: 'checkpoint-2', verb: 'hide' },
+      { id: 'corridor-trust', label: '소녀의 박자에 맞춰 걸어간다', hint: '믿기를 다시 사용. 신뢰 +1.', next: 'checkpoint-2', verb: 'trust', trust: 1 },
+    ],
+  },
+  {
+    id: 'checkpoint-2', checkpoint: 2, kicker: '23:57 · 2차 검문 / 내용 심사',
+    title: '교정관이 묻는다. “그 원고 안에 누가 있죠?”',
+    body: [
+      '거짓말을 반복하면 통과는 쉽다. 하지만 반복할수록 그 동사는 당신의 설정이 되고, 반대 가능성은 닫힌다.',
+      '소녀의 목소리가 작아진다. 신뢰가 바닥나면 그녀는 스스로 여백으로 돌아갈 것이다.',
+    ],
+    note: '의심 8은 즉시 체포, 시간 0은 인쇄 종료다. 신뢰가 부족하면 공개 탈출은 잠긴다.',
+    choices: [
+      { id: 'cp2-forge', label: '빈 승인 도장을 위조한다', hint: '위조를 반복한다. 의심 +1.', next: 'print-floor', verb: 'forge', suspicion: 1 },
+      { id: 'cp2-reveal', label: '소녀의 삭제 사실을 공개한다', hint: '신뢰 2 필요. 드러내기를 반복. 의심 +2, 신뢰 +1.', next: 'print-floor', verb: 'reveal', suspicion: 2, trust: 1, requires: { trust: 2 } },
+      { id: 'cp2-hide', label: '“아무도 없습니다”라며 숨긴다', hint: '숨기기를 또 사용. 신뢰 -1.', next: 'print-floor', verb: 'hide', trust: -1 },
+    ],
+  },
+  {
+    id: 'print-floor', checkpoint: 2, kicker: '23:59 · 3차 검문 / 인쇄기 잠금',
+    title: '마지막 빈칸에는 당신의 인물 설정이 들어간다',
+    body: [
+      '문에는 두 개의 동사를 넣어야 한다. 지금 한 번 더 안전한 행동을 택하면 필요한 동사가 삭제될 수 있다.',
+      '수정액은 삭제된 동사를 되돌리지만 2분과 의심 2를 빼앗는다. 자정 직전에는 그 대가가 치명적이다.',
+    ],
+    note: '마지막 준비다. 장부에서 두 탈출 조합 중 살아 있는 한 쌍을 확인하라.',
+    choices: [
+      { id: 'floor-reveal', label: '방송 마이크로 삭제 사실을 드러낸다', hint: '조용한 탈출의 반쪽. 의심 +1.', next: 'final', verb: 'reveal', suspicion: 1 },
+      { id: 'floor-forge', label: '소녀의 새 출입증을 위조한다', hint: '공개 탈출의 반쪽. 의심 +1.', next: 'final', verb: 'forge', suspicion: 1 },
+      { id: 'floor-trust', label: '잠금 순서를 소녀에게 맡긴다', hint: '믿기를 반복. 신뢰 +1.', next: 'final', verb: 'trust', trust: 1 },
+    ],
+  },
+  {
+    id: 'final', checkpoint: 3, kicker: '자정 직전 · 마지막 각주',
+    title: '살아남은 두 동사를 한 문장에 넣어라',
+    body: [
+      '편집자의 손이 인쇄 레버 위에 내려온다. 여기서는 새로운 성격을 만들 수 없다. 지금까지 지켜낸 동사만 문을 연다.',
+      '소녀가 손을 내민다. “모순은 망가진 문장이 아니에요. 탈출구예요.”',
+    ],
+    note: '잠긴 결말을 눌러도 실패하지 않는다. 동사 장부를 읽고 수정액 사용 여부를 결정하라.',
+    choices: [
+      { id: 'final-quiet', label: '숨기면서 드러낸다', hint: '숨기기 + 드러내기가 모두 기록되어 있고 삭제되지 않아야 한다.', next: 'final', verb: 'hide', contradiction: ['hide', 'reveal'] },
+      { id: 'final-public', label: '믿으면서 위조한다', hint: '믿기 + 위조하기, 그리고 신뢰 3 이상이 필요하다.', next: 'final', verb: 'trust', contradiction: ['trust', 'forge'], requires: { trust: 3 } },
+      { id: 'final-fail', label: '정해진 문장에 서명한다', hint: '당신은 안전하지만 소녀는 여백에 남는다.', next: 'final', verb: 'ask' },
+    ],
+  },
 ];
-export const sceneMap=new Map(scenes.map(s=>[s.id,s]));
+
+export const sceneMap = new Map(scenes.map((scene) => [scene.id, scene]));

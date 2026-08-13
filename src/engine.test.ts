@@ -1,4 +1,85 @@
-import {describe,it,expect} from 'vitest';
-import {choiceKind,choose,ending,initialState,restoreChoice} from './engine';
-import {sceneMap} from './content';
-describe('engine rules',()=>{it('allows a warned choice while charging only an ink-stage choice',()=>{const s={...initialState(),sceneId:'crossing'};const warned=sceneMap.get('crossing')!.choices.find(c=>c.id==='crossing-ask')!;expect(choiceKind(s,warned)).toBe('warning');expect(choose(s,warned).sceneId).toBe('printshop');const ink=sceneMap.get('printshop')!.choices.find(c=>c.id==='print-margin')!;const after=choose({...s,sceneId:'printshop'},ink);expect(after.ink).toBe(2)});it('deletes the choice opposite either repeated character trait through playable routes',()=>{for(const [archiveChoice,streetChoice,deleted] of [['archive-listen','street-share','crossing-use'],['archive-report','street-sell','crossing-care']] as const){let s={...initialState(),sceneId:'archive'};s=choose(s,sceneMap.get('archive')!.choices.find(c=>c.id===archiveChoice)!);s=choose(s,sceneMap.get('street')!.choices.find(c=>c.id===streetChoice)!);expect(s.sceneId).toBe('crossing');expect(s.crossed.has(deleted)).toBe(true)}});it('spends correction fluid and creates contradiction when restoring deletion',()=>{let s=initialState();s.crossed.add('crossing-care');const r=restoreChoice(s,'crossing-care');expect(r.ink).toBe(2);expect(r.contradiction).toBe(true);expect(r.crossed.has('crossing-care')).toBe(false)});it('reaches the hidden human ending through a real playable route',()=>{let s=initialState();for(const [sceneId,choiceId] of [['wake','wake-map'],['platform','platform-slip'],['agency','agency-sign'],['archive','archive-listen'],['street','street-share']] as const){const c=sceneMap.get(sceneId)!.choices.find(x=>x.id===choiceId)!;s=choose(s,c)}expect(s.crossed.has('crossing-use')).toBe(true);s=restoreChoice(s,'crossing-use');s=choose(s,sceneMap.get('crossing')!.choices.find(c=>c.id==='crossing-use')!);s=choose(s,sceneMap.get('printshop')!.choices.find(c=>c.id==='print-sign')!);expect(ending(s)).toBe('human')});it('selects distinct public endings',()=>{expect(ending({...initialState(),sceneId:'end',stats:{solidarity:0,obedience:3,honesty:0}})).toBe('approved');expect(ending({...initialState(),sceneId:'end',stats:{solidarity:3,obedience:0,honesty:0}})).toBe('margin');expect(ending({...initialState(),sceneId:'end',stats:{solidarity:0,obedience:0,honesty:0}})).toBe('erased')})});
+import { describe, expect, it } from 'vitest';
+import { choiceKind, choose, deserialize, initialState, resolveEnding, restoreVerb, serialize, verbIsAvailable, type GameState } from './engine';
+import { sceneMap } from './content';
+
+function pick(state: GameState, id: string) {
+  return sceneMap.get(state.sceneId)!.choices.find((choice) => choice.id === id)!;
+}
+function route(ids: string[]): GameState {
+  let state = initialState();
+  for (const id of ids) state = choose(state, pick(state, id));
+  return state;
+}
+
+describe('Footnote Girl Escape', () => {
+  it('supports two distinct playable wins with tight remaining time', () => {
+    const quiet = route(['desk-hide', 'cp1-reveal', 'corridor-cut', 'cp2-forge', 'floor-reveal']);
+    expect(quiet.time).toBe(4);
+    expect(resolveEnding(quiet, pick(quiet, 'final-quiet'))).toBe('quiet-escape');
+
+    const publicRoute = route(['desk-trust', 'cp1-reveal', 'corridor-cut', 'cp2-forge', 'floor-forge']);
+    expect(publicRoute.time).toBe(4);
+    expect(publicRoute.trust).toBeGreaterThanOrEqual(3);
+    expect(resolveEnding(publicRoute, pick(publicRoute, 'final-public'))).toBe('public-escape');
+  });
+
+  it('escalates a spammed verb from warning to cost to deletion', () => {
+    let state = route(['desk-hide']);
+    expect(choiceKind(state, pick(state, 'cp1-hide'))).toBe('warning');
+    state = choose(state, pick(state, 'cp1-hide'));
+    expect(choiceKind(state, pick(state, 'corridor-hide'))).toBe('cost');
+    const before = { time: state.time, suspicion: state.suspicion };
+    state = choose(state, pick(state, 'corridor-hide'));
+    expect(state.time).toBe(before.time - 2);
+    expect(state.suspicion).toBe(before.suspicion + 1);
+    expect(state.verbUses.hide).toBe(3);
+    expect(verbIsAvailable(state, 'hide')).toBe(false);
+    expect(choiceKind(state, pick(state, 'cp2-hide'))).toBe('crossed');
+  });
+
+  it('restores a deleted verb at a dangerous time and suspicion cost', () => {
+    let state = route(['desk-hide', 'cp1-hide', 'corridor-hide']);
+    let restored = restoreVerb(state, 'hide');
+    expect(restored.ink).toBe(0);
+    expect(restored.time).toBe(state.time - 2);
+    expect(restored.suspicion).toBe(state.suspicion + 2);
+    expect(restored.verbUses.hide).toBe(1);
+    expect(verbIsAvailable(restored, 'hide')).toBe(true);
+    restored = choose(restored, pick(restored, 'cp2-forge'));
+    restored = choose(restored, pick(restored, 'floor-reveal'));
+    expect(restored.time).toBe(1);
+    expect(resolveEnding(restored, pick(restored, 'final-quiet'))).toBe('quiet-escape');
+  });
+
+  it('turns early trust into a real mid-route choice lock', () => {
+    const neglected = route(['desk-hide', 'cp1-forge', 'corridor-cut']);
+    expect(neglected.trust).toBe(1);
+    expect(choiceKind(neglected, pick(neglected, 'cp2-reveal'))).toBe('locked');
+
+    const protectedRoute = route(['desk-hide', 'cp1-reveal', 'corridor-cut']);
+    expect(protectedRoute.trust).toBe(2);
+    expect(choiceKind(protectedRoute, pick(protectedRoute, 'cp2-reveal'))).not.toBe('locked');
+  });
+
+  it('produces deadline, caught, and abandoned failures', () => {
+    let deadline = initialState();
+    deadline.time = 1;
+    deadline = choose(deadline, pick(deadline, 'desk-hide'));
+    expect(deadline.ended).toBe('deadline');
+
+    let caught = initialState();
+    caught.suspicion = 7;
+    caught = choose(caught, pick(caught, 'desk-ask'));
+    expect(caught.ended).toBe('caught');
+
+    const safe = route(['desk-hide', 'cp1-forge', 'corridor-cut', 'cp2-forge', 'floor-reveal']);
+    expect(resolveEnding(safe, pick(safe, 'final-fail'))).toBe('forgotten');
+    expect(resolveEnding(safe, pick(safe, 'final-quiet'))).toBe('quiet-escape');
+  });
+
+  it('round trips the versioned save state', () => {
+    const state = route(['desk-trust', 'cp1-forge', 'corridor-trust']);
+    const restored = deserialize(serialize(state));
+    expect(restored).toEqual(state);
+  });
+});
