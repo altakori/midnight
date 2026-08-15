@@ -1,4 +1,4 @@
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export type Location = 'entrance' | 'lobby' | 'hall' | 'transmitter' | 'power' | 'archive' | 'studio' | 'passage' | 'booth' | 'roof';
 export type ItemId = 'handheld-radio' | 'frequency-card' | 'insulated-gloves' | 'breaker-key' | 'recording-reel' | 'station-log' | 'flashlight' | 'color-filters' | 'sibling-photo' | 'roof-key' | 'memory-tape';
@@ -18,6 +18,7 @@ export interface GameState {
   frequency: PuzzleState; breaker: PuzzleState; recordings: PuzzleState; flashlight: PuzzleState; finalStatement: PuzzleState;
   rememberedSibling: boolean;
 }
+export type EndingAvailability = Record<Ending, boolean> & { resolved: number };
 
 export const LOCATION_ORDER: Location[] = ['entrance', 'lobby', 'hall', 'transmitter', 'power', 'archive', 'studio', 'passage', 'booth', 'roof'];
 export const LOCATIONS: Record<string, { title: string; subtitle: string; act: 1 | 2 | 3; art: string }> = {
@@ -74,6 +75,8 @@ const puzzle = (): PuzzleState => ({ status: 'locked', attempts: 0, input: [], f
 export function initialState(): GameState { return { version: SAVE_VERSION, location: 'entrance', inventory: [], found: new Set(), clues: new Set(), unlocked: false, archiveLit: false, shadowSeen: false, tension: 0, failedActions: 0, message: '폭풍이 치는 산속 방송국에서 자정 전에 동생을 찾아야 한다.', editorialScore: 0, ink: 2, correctionFluid: 1, contradictions: 0, clueDecisions: {}, frequency: puzzle(), breaker: puzzle(), recordings: puzzle(), flashlight: puzzle(), finalStatement: puzzle(), rememberedSibling: false }; }
 export function serialize(state: GameState): string { return JSON.stringify({ ...state, found: [...state.found], clues: [...state.clues] }); }
 const ITEM_IDS = new Set<ItemId>(Object.keys(ITEM_INFO) as ItemId[]);
+const CLUE_IDS = new Set(CLUES.map((clue) => clue.id));
+const FOUND_IDS = new Set(HOTSPOTS.map((hotspot) => `hotspot:${hotspot.id}`));
 const LOCATIONS_SET = new Set<Location>(LOCATION_ORDER);
 const PUZZLE_STATUSES = new Set<PuzzleStatus>(['locked', 'active', 'solved']);
 function isStringArray(value: unknown): value is string[] { return Array.isArray(value) && value.every((entry) => typeof entry === 'string'); }
@@ -91,11 +94,16 @@ export function deserialize(raw: string): GameState {
   const puzzles = [candidate.frequency, candidate.breaker, candidate.recordings, candidate.flashlight, candidate.finalStatement];
   const validEnding = candidate.ending === undefined || candidate.ending === 'restore' || candidate.ending === 'erase' || candidate.ending === 'human';
   const validDecisions = candidate.clueDecisions && typeof candidate.clueDecisions === 'object'
-    && Object.values(candidate.clueDecisions).every((action) => action === 'record' || action === 'delete');
+    && Object.entries(candidate.clueDecisions).every(([id, action]) => CLUE_IDS.has(id) && (action === 'record' || action === 'delete'));
+  const validPending = candidate.pendingClue === undefined || (typeof candidate.pendingClue === 'string' && CLUE_IDS.has(candidate.pendingClue));
+  const booleanFields = [candidate.unlocked, candidate.archiveLit, candidate.shadowSeen, candidate.rememberedSibling];
+  const numberFields = [candidate.tension, candidate.failedActions, candidate.editorialScore, candidate.ink, candidate.correctionFluid, candidate.contradictions];
   if (candidate.version !== SAVE_VERSION || typeof candidate.location !== 'string' || !LOCATIONS_SET.has(candidate.location as Location)
     || !Array.isArray(candidate.inventory) || !candidate.inventory.every((id) => typeof id === 'string' && ITEM_IDS.has(id as ItemId))
-    || !isStringArray(candidate.found) || !isStringArray(candidate.clues) || !puzzles.every(isPuzzleState)
-    || !validEnding || !validDecisions || typeof candidate.message !== 'string') return initialState();
+    || !isStringArray(candidate.found) || !candidate.found.every((id) => FOUND_IDS.has(id))
+    || !isStringArray(candidate.clues) || !candidate.clues.every((id) => CLUE_IDS.has(id)) || !puzzles.every(isPuzzleState)
+    || !validEnding || !validDecisions || !validPending || !booleanFields.every((field) => typeof field === 'boolean')
+    || !numberFields.every((field) => typeof field === 'number' && Number.isFinite(field)) || typeof candidate.message !== 'string') return initialState();
   const base = initialState();
   return { ...base, ...candidate, location: candidate.location as Location, ending: candidate.ending,
     found: new Set(candidate.found), clues: new Set(candidate.clues), inventory: [...new Set(candidate.inventory as ItemId[])],
@@ -115,7 +123,23 @@ export function inspectHotspot(state: GameState, hotspotId: string): GameState {
 export function resolveEditorialChoice(state: GameState, action: EditorialAction, forceRestore = false): GameState { const id = state.pendingClue; if (!id) return fail(state, '선택할 단서가 없다.'); const status = editorialActionState(state, action); if (forceRestore ? !status.canRestore : status.disabled) return fail(state, '지금은 그 선택을 할 수 없다.'); const spot = HOTSPOTS.find((h) => h.reward.type === 'clue' && h.reward.id === id)!; return patch(state, { found: new Set(state.found).add(`hotspot:${spot.id}`), clues: new Set(state.clues).add(id), pendingClue: undefined, clueDecisions: { ...state.clueDecisions, [id]: action }, editorialScore: state.editorialScore + (action === 'record' ? 1 : -1), ink: status.costsInk && !forceRestore ? state.ink - 1 : state.ink, contradictions: state.contradictions + (status.opposite ? 1 : 0), message: action === 'record' ? '단서를 남겼다.' : '단서를 지웠지만 흔적은 남았다.' }); }
 export function inspect(state: GameState, item: ItemId): GameState { return patch(state, { message: ITEM_INFO[item]?.description ?? state.message }); }
 
-function attempt(state: GameState, key: 'frequency' | 'breaker' | 'recordings' | 'flashlight', input: string[], answer: string[], ready: boolean, success: string): GameState { const current = state[key]; if (!ready) return fail(state, '필요한 단서와 도구를 먼저 찾아야 한다.'); if (current.status === 'solved') return state; const correct = input.length === answer.length && input.every((v, i) => v.toLowerCase() === answer[i].toLowerCase()); const next: PuzzleState = { status: correct ? 'solved' : 'active', attempts: current.attempts + 1, input, feedback: correct ? success : '순서가 틀렸다. 장비가 울리고 폭풍 잡음이 커졌다.' }; return patch(state, { [key]: next, message: next.feedback, unlocked: key === 'breaker' && correct ? true : state.unlocked, archiveLit: key === 'frequency' && correct ? true : state.archiveLit, shadowSeen: key === 'flashlight' && correct ? true : state.shadowSeen, tension: Math.min(100, state.tension + (correct ? 0 : 4)) }); }
+const WRONG_FEEDBACK: Record<'frequency' | 'breaker' | 'recordings' | 'flashlight', (matches: number, total: number) => string> = {
+  frequency: (matches, total) => `${total}개 중 ${matches}개의 파형만 안정됐다. 카드의 자국과 소리를 다시 짝지어 보자.`,
+  breaker: (matches, total) => `${total}개 중 ${matches}개의 연결만 맞게 울렸다. 앞뒤 조건을 다시 확인하자.`,
+  recordings: (matches, total) => `${total}개 중 ${matches}개의 테이프만 제시간에 놓였다. 녹음 속 시각을 비교하자.`,
+  flashlight: (matches, total) => `${total}개 중 ${matches}개의 색만 벽에 남았다. 처음과 마지막 색부터 정하자.`,
+};
+function attempt(state: GameState, key: 'frequency' | 'breaker' | 'recordings' | 'flashlight', input: string[], answer: string[], ready: boolean, success: string): GameState {
+  const current = state[key];
+  if (!ready) return fail(state, '필요한 단서와 도구를 먼저 찾아야 한다.');
+  if (current.status === 'solved') return state;
+  const matches = input.filter((value, index) => value.toLowerCase() === answer[index]?.toLowerCase()).length;
+  const correct = input.length === answer.length && matches === answer.length;
+  const next: PuzzleState = { status: correct ? 'solved' : 'active', attempts: current.attempts + 1, input, feedback: correct ? success : WRONG_FEEDBACK[key](matches, answer.length) };
+  return patch(state, { [key]: next, message: next.feedback, failedActions: state.failedActions + (correct ? 0 : 1),
+    unlocked: key === 'breaker' && correct ? true : state.unlocked, archiveLit: key === 'frequency' && correct ? true : state.archiveLit,
+    shadowSeen: key === 'flashlight' && correct ? true : state.shadowSeen, tension: Math.min(100, state.tension + (correct ? 0 : 4)) });
+}
 export function attemptFrequency(state: GameState, sequence: string[]): GameState { return attempt(state, 'frequency', sequence, ['7', '3', '9', '1'], state.inventory.includes('handheld-radio') && state.inventory.includes('frequency-card'), '주파수가 맞았다. 방송 기록 보관실의 전원이 살아났다.'); }
 export function connectBreaker(state: GameState, order: string[]): GameState { return attempt(state, 'breaker', order, ['red', 'blue', 'yellow', 'black'], state.inventory.includes('insulated-gloves') && state.inventory.includes('breaker-key') && state.frequency.status === 'solved', '차단기가 순서대로 연결됐다. 안쪽 문이 열렸다.'); }
 export function arrangeRecordings(state: GameState, order: string[]): GameState { return attempt(state, 'recordings', order, ['storm', 'arrival', 'warning', 'erasure'], state.inventory.includes('recording-reel') && state.inventory.includes('station-log') && state.breaker.status === 'solved', '시간순 녹음이 재생됐다. 스튜디오에서 동생의 목소리가 들린다.'); }
@@ -125,5 +149,25 @@ export const solveBreaker = connectBreaker;
 export const solveRecordings = arrangeRecordings;
 export const solveFlashlight = selectFlashlightFilter;
 export const FINAL_STATEMENTS = ['하윤은 밤 11시 40분에 혼자 방송국을 떠났다.', '기억 삭제 방송은 자정에 가장 강해진다.', '숨은 통로는 스튜디오 뒤에서 옥상 계단으로 이어진다.'];
-export function chooseFinalStatement(state: GameState, statementIndex: number): GameState { if (state.location !== 'booth' && state.location !== 'roof') return fail(state, '심야 부스에서 방송 기록을 확인해야 한다.'); if (state.flashlight.status !== 'solved' || !state.inventory.includes('memory-tape')) return fail(state, '숨은 통로와 기억 테이프를 먼저 확인하자.'); const correct = statementIndex === 0; const next: PuzzleState = { status: correct ? 'solved' : 'active', attempts: state.finalStatement.attempts + 1, input: [String(statementIndex)], feedback: correct ? '거짓 방송을 찾아냈다. 마지막 문을 열 수 있다.' : '그 문장은 거짓이 아니다. 방송은 계속 기억을 지운다.' }; return patch(state, { finalStatement: next, message: next.feedback, rememberedSibling: correct, tension: Math.min(100, state.tension + (correct ? 0 : 5)) }); }
-export function chooseEnding(state: GameState, ending: Ending): GameState { if (state.location !== 'roof' || state.finalStatement.status !== 'solved' || !state.inventory.includes('roof-key')) return fail(state, '거짓 방송을 밝혀내고 지붕 열쇠를 찾아야 한다.'); if (ending === 'human' && state.contradictions < 1) return fail(state, '삭제와 기록 사이의 모순을 한 번은 직접 마주해야 한다.'); const message = ending === 'restore' ? '동생의 이름과 기억을 되돌리고 방송을 끊었다.' : ending === 'erase' ? '방송을 지웠지만, 동생을 찾은 기억도 함께 지워졌다.' : '거짓과 진실을 모두 기록하고 동생과 함께 산을 내려왔다.'; return patch(state, { ending, message, tension: ending === 'erase' ? 100 : ending === 'restore' ? 0 : 50 }); }
+export function chooseFinalStatement(state: GameState, statementIndex: number): GameState {
+  if (state.location !== 'booth' && state.location !== 'roof') return fail(state, '심야 부스에서 방송 기록을 확인해야 한다.');
+  if (state.finalStatement.status === 'solved') return state;
+  const evidenceReady = state.flashlight.status === 'solved' && state.inventory.includes('memory-tape') && state.inventory.includes('sibling-photo') && state.clues.has('false-script');
+  if (!evidenceReady) return fail(state, '동생 사진, 기억 테이프, 수상한 방송 기록을 모두 대조해야 한다.');
+  const correct = statementIndex === 0;
+  const next: PuzzleState = { status: correct ? 'solved' : 'active', attempts: state.finalStatement.attempts + 1, input: [String(statementIndex)], feedback: correct ? '사진의 시각과 방송 기록이 충돌한다. 거짓 방송을 송신기에서 뺐다.' : '사진과 테이프가 그 문장을 뒷받침한다. 다른 문장을 대조하자.' };
+  return patch(state, { finalStatement: next, message: next.feedback, rememberedSibling: correct,
+    failedActions: state.failedActions + (correct ? 0 : 1), tension: Math.min(100, state.tension + (correct ? 0 : 5)) });
+}
+export function endingAvailability(state: GameState): EndingAvailability {
+  const actions = CLUES.map((clue) => state.clueDecisions[clue.id]).filter((action): action is EditorialAction => action === 'record' || action === 'delete');
+  const recorded = actions.filter((action) => action === 'record').length;
+  const deleted = actions.filter((action) => action === 'delete').length;
+  return { restore: recorded >= 2, erase: deleted >= 2, human: recorded >= 1 && deleted >= 1 && state.contradictions >= 1, resolved: actions.length };
+}
+export function chooseEnding(state: GameState, ending: Ending): GameState {
+  if (state.location !== 'roof' || state.finalStatement.status !== 'solved' || !state.inventory.includes('roof-key')) return fail(state, '거짓 방송을 밝혀내고 지붕 열쇠를 찾아야 한다.');
+  if (!endingAvailability(state)[ending]) return fail(state, '지금까지 기억을 다룬 방식으로는 그 결말을 선택할 수 없다.');
+  const message = ending === 'restore' ? '믿고 남긴 기억으로 동생의 이름을 되찾고 방송을 끊었다.' : ending === 'erase' ? '의심한 기록을 모두 지웠지만, 동생을 찾은 기억도 함께 사라졌다.' : '믿음과 의심을 모두 받아들이고 동생과 기억을 맞춰 보았다.';
+  return patch(state, { ending, message, tension: ending === 'erase' ? 100 : ending === 'restore' ? 0 : 50 });
+}

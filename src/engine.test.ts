@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { arrangeRecordings, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
+import { arrangeRecordings, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, endingAvailability, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
 
 function go(state: GameState, target: Location): GameState {
   for (let i = 0; i < 30 && state.location !== target; i++) state = move(state, 1);
@@ -7,7 +7,7 @@ function go(state: GameState, target: Location): GameState {
   return state;
 }
 function take(state: GameState, id: string): GameState { return inspectHotspot(state, id); }
-function fullInvestigation(memoryChoices: EditorialAction[] = []): GameState {
+function fullInvestigation(memoryChoices: EditorialAction[] = ['record', 'record', 'record'], solveFinal = true): GameState {
   let s = initialState();
   s = take(s, 'entrance-radio');
   s = go(s, 'lobby'); s = take(s, 'lobby-frequency');
@@ -23,6 +23,7 @@ function fullInvestigation(memoryChoices: EditorialAction[] = []): GameState {
   s = go(s, 'passage'); s = take(s, 'passage-photo');
   s = go(s, 'booth'); s = take(s, 'booth-memory');
   if (memoryChoices[2]) { s = take(s, 'booth-false-script'); s = resolveEditorialChoice(s, memoryChoices[2]); }
+  if (!solveFinal) return s;
   s = chooseFinalStatement(s, 0);
   s = go(s, 'roof'); s = take(s, 'roof-key');
   return s;
@@ -41,7 +42,7 @@ describe('storm mountain radio station engine', () => {
     let s = initialState();
     s = take(s, 'entrance-radio'); s = go(s, 'lobby'); s = take(s, 'lobby-frequency'); s = go(s, 'hall'); s = take(s, 'hall-gloves'); s = go(s, 'transmitter'); s = take(s, 'transmitter-key');
     s = attemptFrequency(s, ['1', '2', '3', '4']);
-    expect(s.frequency.status).toBe('active'); expect(s.frequency.attempts).toBe(1); expect(s.message).toContain('틀렸다');
+    expect(s.frequency.status).toBe('active'); expect(s.frequency.attempts).toBe(1); expect(s.message).toContain('4개 중'); expect(s.failedActions).toBe(1);
     expect(availableLocations(s)).not.toContain('archive');
     s = attemptFrequency(s, ['7', '3', '9', '1']);
     expect(s.frequency.status).toBe('solved'); expect(s.archiveLit).toBe(true);
@@ -67,25 +68,30 @@ describe('storm mountain radio station engine', () => {
   it('gives feedback for wrong chronology and wrong filter sequence', () => {
     let s = initialState();
     s = take(s, 'entrance-radio'); s = go(s, 'lobby'); s = take(s, 'lobby-frequency'); s = go(s, 'hall'); s = take(s, 'hall-gloves'); s = go(s, 'transmitter'); s = take(s, 'transmitter-key'); s = attemptFrequency(s, ['7', '3', '9', '1']); s = go(s, 'power'); s = take(s, 'power-reel'); s = connectBreaker(s, ['red', 'blue', 'yellow', 'black']); s = go(s, 'archive'); s = take(s, 'archive-log');
-    s = arrangeRecordings(s, ['arrival', 'storm', 'warning', 'erasure']); expect(s.recordings.status).toBe('active'); expect(s.recordings.feedback).toContain('틀렸다');
+    s = arrangeRecordings(s, ['arrival', 'storm', 'warning', 'erasure']); expect(s.recordings.status).toBe('active'); expect(s.recordings.feedback).toContain('4개 중 2개');
     s = arrangeRecordings(s, ['storm', 'arrival', 'warning', 'erasure']); s = go(s, 'studio'); s = take(s, 'studio-flashlight'); s = take(s, 'studio-filters');
     s = selectFlashlightFilter(s, ['red', 'blue', 'amber']); expect(s.flashlight.status).toBe('active');
     s = selectFlashlightFilter(s, ['blue', 'amber', 'red']); expect(s.flashlight.status).toBe('solved');
   });
 
   it('selects the false statement before either ending can be reached', () => {
-    const ready = fullInvestigation();
+    const ready = fullInvestigation(['record', 'record', 'record'], false);
     const inBooth = { ...ready, location: 'booth' as Location };
     const wrong = chooseFinalStatement(inBooth, 2);
-    expect(wrong.finalStatement.status).toBe('active'); expect(wrong.message).toContain('거짓이 아니다');
+    expect(wrong.finalStatement.status).toBe('active'); expect(wrong.message).toContain('뒷받침');
     const right = chooseFinalStatement(wrong, 0);
     expect(right.finalStatement.status).toBe('solved'); expect(right.rememberedSibling).toBe(true);
+    expect(chooseFinalStatement(right, 2)).toEqual(right);
   });
 
   it('reaches two endings from initial state through the real route', () => {
-    const restore = chooseEnding(fullInvestigation(), 'restore');
+    const restoreReady = fullInvestigation(['record', 'record', 'record']);
+    expect(endingAvailability(restoreReady)).toMatchObject({ restore: true, erase: false, human: false });
+    const restore = chooseEnding(restoreReady, 'restore');
     expect(restore.ending).toBe('restore');
-    const erased = chooseEnding(fullInvestigation(), 'erase');
+    const eraseReady = fullInvestigation(['delete', 'delete', 'delete']);
+    expect(endingAvailability(eraseReady)).toMatchObject({ restore: false, erase: true, human: false });
+    const erased = chooseEnding(eraseReady, 'erase');
     expect(erased.ending).toBe('erase');
     expect(restore.message).not.toBe(erased.message);
   });
@@ -101,14 +107,17 @@ describe('storm mountain radio station engine', () => {
   it('round-trips sets and puzzle progress, while safely resetting incompatible or malformed saves', () => {
     const progress = fullInvestigation();
     const roundTrip = deserialize(serialize(progress));
-    expect(roundTrip.version).toBe(7); expect(roundTrip.frequency.status).toBe('solved'); expect(roundTrip.finalStatement.status).toBe('solved'); expect(roundTrip.inventory).toEqual(progress.inventory);
-    const legacy = deserialize(JSON.stringify({ version: 6, location: 'roof', inventory: ['roof-key'], ending: 'erase' }));
-    expect(legacy.version).toBe(7); expect(legacy.location).toBe('entrance'); expect(legacy.ending).toBeUndefined(); expect(legacy.inventory).toEqual([]);
+    expect(roundTrip.version).toBe(8); expect(roundTrip.frequency.status).toBe('solved'); expect(roundTrip.finalStatement.status).toBe('solved'); expect(roundTrip.inventory).toEqual(progress.inventory);
+    const legacy = deserialize(JSON.stringify({ version: 7, location: 'roof', inventory: ['roof-key'], ending: 'erase' }));
+    expect(legacy.version).toBe(8); expect(legacy.location).toBe('entrance'); expect(legacy.ending).toBeUndefined(); expect(legacy.inventory).toEqual([]);
     const saved = JSON.parse(serialize(progress));
     for (const mutation of [
       { ...saved, location: 'missing-room' },
       { ...saved, ending: 'restore\" onclick=\"alert(1)' },
       { ...saved, frequency: { status: 'solved' } },
+      { ...saved, clues: ['false-script', 'invented-clue'] },
+      { ...saved, clueDecisions: { ...saved.clueDecisions, invented: 'record' } },
+      { ...saved, tension: 'loud' },
     ]) {
       const reset = deserialize(JSON.stringify(mutation));
       expect(reset.location).toBe('entrance'); expect(reset.ending).toBeUndefined(); expect(reset.inventory).toEqual([]);

@@ -13,6 +13,7 @@ import {
   chooseFinalStatement,
   connectBreaker,
   deserialize,
+  endingAvailability,
   fail,
   initialState,
   inspect,
@@ -28,13 +29,14 @@ import {
   type ItemId,
 } from './engine';
 
-const SAVE_KEY = 'midnight-frequency-v7';
-const LEGACY_KEYS = ['unwritten-village-submission-v6', 'unwritten-village-submission-v5'];
+const SAVE_KEY = 'midnight-frequency-v8';
+const LEGACY_KEYS = ['midnight-frequency-v7', 'unwritten-village-submission-v6', 'unwritten-village-submission-v5'];
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 let state = load();
 let detailOpen = false;
 let journalOpen = false;
+let bagOpen = false;
 let paused = false;
 let introOpen = !sessionStorage.getItem('midnight-frequency-intro-seen');
 let puzzleDraft: string[] = [];
@@ -42,22 +44,34 @@ let restoreFocusSelector = '';
 
 const PUZZLE_META = {
   transmitter: {
-    key: 'frequency', title: '네 개의 다이얼', instruction: '주파수 카드의 번개 자국을 보고 숫자 네 개를 순서대로 누르자.',
-    options: [['7', '낮은 잡음'], ['3', '짧은 신호'], ['9', '긴 신호'], ['1', '아이의 호출음']], limit: 4,
+    key: 'frequency', title: '네 개의 주파수 다이얼', instruction: '카드의 자국과 라디오 파형을 짝지어 송신 순서를 만들자.',
+    evidence: ['굵은 파형이 첫 신호다.', '세 갈래 파형은 굵은 파형 뒤다.', '긴 신호 다음에 한 번의 호출음이 온다.'],
+    options: [['1', '1 · 호출음'], ['9', '9 · 긴 신호'], ['3', '3 · 세 갈래'], ['7', '7 · 굵은 파형']], limit: 4,
   },
   power: {
-    key: 'breaker', title: '젖은 차단기', instruction: '안전 표시를 보고 케이블 네 개를 순서대로 연결하자.',
-    options: [['red', '빨강'], ['blue', '파랑'], ['yellow', '노랑'], ['black', '검정']], limit: 4,
+    key: 'breaker', title: '젖은 차단기', instruction: '패널의 세 조건을 모두 만족하도록 케이블을 연결하자.',
+    evidence: ['검정 접지선은 마지막이다.', '빨강은 파랑보다 먼저다.', '노랑은 파랑 뒤, 검정 앞이다.'],
+    options: [['black', '검정 · 접지'], ['yellow', '노랑 · 조명'], ['red', '빨강 · 발전'], ['blue', '파랑 · 계기']], limit: 4,
   },
   archive: {
-    key: 'recordings', title: '순서가 뒤섞인 녹음', instruction: '사건이 일어난 순서대로 테이프를 놓자.',
-    options: [['storm', '① 폭풍 경보가 내려왔다'], ['arrival', '② 하윤이 방송국에 도착했다'], ['warning', '③ 하윤이 경고 방송을 남겼다'], ['erasure', '④ 기억 삭제 방송이 시작됐다']], limit: 4,
+    key: 'recordings', title: '순서가 뒤섞인 녹음', instruction: '네 테이프 속 시각을 비교해 사건 순서대로 릴에 걸자.',
+    evidence: ['폭풍 경보 · 23:30', '출입문 기록 · 23:42', '하윤의 경고 · 23:55', '기억 삭제 방송 · 00:00'],
+    options: [['warning', '하윤의 경고'], ['erasure', '기억 삭제 방송'], ['storm', '폭풍 경보'], ['arrival', '출입문 열림']], limit: 4,
   },
   studio: {
-    key: 'flashlight', title: '빛에 반응하는 벽', instruction: '녹음에서 들은 색 순서대로 손전등 필터를 비추자.',
-    options: [['blue', '청록'], ['amber', '호박'], ['red', '빨강']], limit: 3,
+    key: 'flashlight', title: '빛에 반응하는 벽', instruction: '벽에 적힌 조건대로 세 필터를 차례로 비추자.',
+    evidence: ['차가운 빛이 문양을 깨운다.', '비상등의 빨강은 마지막이다.', '남은 호박빛은 두 빛 사이다.'],
+    options: [['red', '빨강 필터'], ['blue', '청록 필터'], ['amber', '호박 필터']], limit: 3,
   },
 } as const;
+
+const HOTSPOT_POSITION: Record<string, [number, number]> = {
+  'entrance-radio': [59, 55], 'lobby-frequency': [82, 27], 'lobby-storm-note': [31, 43],
+  'hall-gloves': [68, 55], 'transmitter-key': [58, 72], 'power-reel': [58, 53],
+  'archive-log': [43, 58], 'studio-flashlight': [45, 73], 'studio-filters': [63, 88],
+  'studio-sibling-call': [56, 68], 'passage-photo': [36, 54], 'booth-memory': [48, 72],
+  'booth-false-script': [66, 70], 'roof-key': [30, 58],
+};
 
 type PuzzleLocation = keyof typeof PUZZLE_META;
 
@@ -96,7 +110,8 @@ function objective(): string {
   return '옥상으로 올라가 하윤을 찾자.';
 }
 function hint(): string {
-  if (state.failedActions < 2) return '장소를 가까이 보고 표시된 단서와 도구를 조사하자.';
+  const currentAttempts = state.location === 'transmitter' ? state.frequency.attempts : state.location === 'power' ? state.breaker.attempts : state.location === 'archive' ? state.recordings.attempts : state.location === 'studio' ? state.flashlight.attempts : state.location === 'booth' ? state.finalStatement.attempts : 0;
+  if (state.failedActions < 2 && currentAttempts < 1) return '장소를 가까이 보고 표시된 단서와 도구를 조사하자.';
   if (state.location === 'transmitter') return '휴대 라디오에서 소리가 바뀐 순서를 주파수 카드와 비교하자.';
   if (state.location === 'power') return '피복이 멀쩡한 선부터 연결하고 접지선으로 끝내자.';
   if (state.location === 'archive') return '폭풍 경보 → 하윤 도착 → 경고 녹음 → 기억 삭제 방송 순서다.';
@@ -112,7 +127,7 @@ function sceneMarkup(): string {
   const spots = visibleHotspots(state);
   const sceneClass = detailOpen ? 'detail' : 'overview';
   const hotspotButtons = detailOpen
-    ? spots.map((spot, index) => `<button class="physical-hotspot hotspot-${index % 3}" data-hotspot="${spot.id}"><span>${spot.reward.type === 'item' ? '도구' : '기억'}</span><strong>${escapeHtml(spot.label)}</strong></button>`).join('')
+    ? spots.map((spot) => { const [x, y] = HOTSPOT_POSITION[spot.id] ?? [50, 50]; return `<button class="physical-hotspot" style="--hotspot-x:${x}%;--hotspot-y:${y}%" data-hotspot="${spot.id}"><small>${spot.reward.type === 'item' ? '도구' : '기억'}</small><b>${escapeHtml(spot.label)}</b></button>`; }).join('')
     : '';
   const puzzle = detailOpen ? puzzleMarkup() : '';
   return `<div class="scene-image ${sceneClass}" style="background-image:url('${art}')"></div><div class="rain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>
@@ -138,8 +153,9 @@ function puzzleMarkup(): string {
   if (puzzle.status === 'solved') return `<section class="puzzle-panel solved"><span>해결 완료</span><h3>${meta.title}</h3><p>${escapeHtml(puzzle.feedback)}</p></section>`;
   const ready = puzzleReady(location);
   const slots = Array.from({ length: meta.limit }, (_, index) => `<i class="puzzle-slot ${puzzleDraft[index] ? 'filled' : ''}">${escapeHtml(optionLabel(meta.options, puzzleDraft[index]) || '·')}</i>`).join('');
-  const options = meta.options.map(([value, label]) => `<button data-puzzle-value="${value}" ${puzzleDraft.includes(value) ? 'disabled' : ''}><b>${escapeHtml(label)}</b></button>`).join('');
-  return `<section class="puzzle-panel ${ready ? '' : 'locked'}" data-puzzle="${meta.key}"><span>현장 퍼즐</span><h3>${meta.title}</h3><p>${meta.instruction}</p>${!ready ? `<em>${puzzleRequirement(location)}</em>` : `<div class="puzzle-slots">${slots}</div><div class="puzzle-pieces">${options}</div><div class="puzzle-actions"><button data-puzzle-reset>선택 지우기</button><button data-puzzle-submit ${puzzleDraft.length !== meta.limit ? 'disabled' : ''}>순서 확인</button></div>`}${puzzle.feedback ? `<small class="puzzle-feedback">${escapeHtml(puzzle.feedback)}</small>` : ''}</section>`;
+  const options = meta.options.map(([value, label]) => `<button class="puzzle-piece piece-${value}" data-puzzle-value="${value}" ${puzzleDraft.includes(value) ? 'disabled' : ''}><i aria-hidden="true"></i><b>${escapeHtml(label)}</b></button>`).join('');
+  const evidence = `<ul class="puzzle-evidence">${meta.evidence.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
+  return `<section class="puzzle-panel puzzle-${meta.key} ${ready ? '' : 'locked'} ${puzzle.attempts ? 'has-attempt' : ''}" data-puzzle="${meta.key}"><span>현장 퍼즐</span><h3>${meta.title}</h3><p>${meta.instruction}</p>${evidence}${!ready ? `<em>${puzzleRequirement(location)}</em>` : `<div class="puzzle-slots">${slots}</div><div class="puzzle-pieces">${options}</div><div class="puzzle-actions"><button data-puzzle-reset>다시 놓기</button><button data-puzzle-submit ${puzzleDraft.length !== meta.limit ? 'disabled' : ''}>장비 작동</button></div>`}${puzzle.feedback ? `<small class="puzzle-feedback">${escapeHtml(puzzle.feedback)}</small>` : ''}</section>`;
 }
 function optionLabel(options: readonly (readonly [string, string])[], value?: string): string {
   return value ? options.find(([key]) => key === value)?.[1] ?? value : '';
@@ -158,18 +174,20 @@ function puzzleRequirement(location: PuzzleLocation): string {
 }
 function finalPuzzleMarkup(): string {
   if (state.finalStatement.status === 'solved') return `<section class="puzzle-panel solved"><span>거짓 방송 제거 완료</span><h3>옥상 문이 열렸다</h3><p>${escapeHtml(state.finalStatement.feedback)}</p></section>`;
-  const ready = state.flashlight.status === 'solved' && state.inventory.includes('memory-tape');
-  return `<section class="puzzle-panel final-puzzle ${ready ? '' : 'locked'}"><span>다섯 번째 퍼즐</span><h3>거짓 방송 하나 빼기</h3><p>직접 확인한 사실과 맞지 않는 방송 하나를 골라 송신기에서 빼자.</p>${ready ? `<div class="statement-stack">${FINAL_STATEMENTS.map((text, index) => `<button data-statement="${index}"><span>방송 ${index + 1}</span><b>${escapeHtml(text)}</b></button>`).join('')}</div>` : '<em>숨은 통로에서 기억 테이프를 먼저 찾자.</em>'}${state.finalStatement.feedback ? `<small class="puzzle-feedback">${escapeHtml(state.finalStatement.feedback)}</small>` : ''}</section>`;
+  const ready = state.flashlight.status === 'solved' && state.inventory.includes('memory-tape') && state.inventory.includes('sibling-photo') && state.clues.has('false-script');
+  return `<section class="puzzle-panel final-puzzle ${ready ? '' : 'locked'} ${state.finalStatement.attempts ? 'has-attempt' : ''}"><span>다섯 번째 퍼즐</span><h3>거짓 방송 하나 빼기</h3><p>사진의 시각, 기억 테이프, 방송 기록과 충돌하는 문장을 골라 송신기에서 빼자.</p>${ready ? `<div class="evidence-check"><b>사진</b><b>테이프</b><b>방송 기록</b></div><div class="statement-stack">${FINAL_STATEMENTS.map((text, index) => `<button data-statement="${index}"><span>방송 ${index + 1}</span><b>${escapeHtml(text)}</b></button>`).join('')}</div>` : '<em>동생 사진, 기억 테이프, 수상한 방송 기록이 모두 필요하다.</em>'}${state.finalStatement.feedback ? `<small class="puzzle-feedback">${escapeHtml(state.finalStatement.feedback)}</small>` : ''}</section>`;
 }
 function endingChoicesMarkup(): string {
   if (state.finalStatement.status !== 'solved') return '<section class="puzzle-panel locked"><h3>옥상 문이 잠겨 있다</h3><p>심야 부스에서 거짓 방송 하나를 먼저 빼자.</p></section>';
   const hasKey = state.inventory.includes('roof-key');
   if (!hasKey) return '<section class="puzzle-panel locked"><h3>하윤이 난간 끝에 있다</h3><p>사다리 옆에서 옥상 열쇠를 찾자.</p></section>';
-  return `<section class="puzzle-panel final-choice"><span>마지막 선택</span><h3>하윤과 어떻게 빠져나갈까?</h3><button data-ending="restore">하윤과 함께 송신기를 끈다</button><button data-ending="erase">방송국의 모든 기록을 지운다</button>${state.contradictions >= 1 ? '<button data-ending="human">하윤과 기억을 확인하고 함께 내려간다</button>' : ''}</section>`;
+  const choices = endingAvailability(state);
+  if (choices.resolved < 2) return `<section class="puzzle-panel final-choice locked"><span>마지막 선택</span><h3>아직 어떤 기억을 믿을지 정하지 못했다</h3><p>방송국에서 찾은 기억을 두 개 이상 확인한 뒤 돌아오자.</p></section>`;
+  return `<section class="puzzle-panel final-choice"><span>마지막 선택 · 지금까지의 행동이 남긴 선택지</span><h3>하윤과 어떻게 빠져나갈까?</h3><button data-ending="restore" ${choices.restore ? '' : 'disabled'}>하윤의 기억을 믿고 송신기를 끈다${choices.restore ? '' : ' · 잠김'}</button><button data-ending="erase" ${choices.erase ? '' : 'disabled'}>모든 기록을 의심하고 지운다${choices.erase ? '' : ' · 잠김'}</button><button data-ending="human" ${choices.human ? '' : 'disabled'}>서로 다른 기억을 맞춰 보고 함께 내려간다${choices.human ? '' : ' · 잠김'}</button></section>`;
 }
 function toolBelt(): string {
   const tools = state.inventory.filter((id): id is ItemId => Boolean(ITEM_INFO[id]));
-  return `<div class="tool-belt"><b>가방</b>${tools.length ? tools.map((id) => `<button data-inspect-item="${id}" title="${escapeHtml(ITEM_INFO[id].description)}"><i>${ITEM_INFO[id].icon}</i><span>${escapeHtml(ITEM_INFO[id].name)}</span></button>`).join('') : '<span>아직 도구가 없다.</span>'}</div>`;
+  return `<aside class="tool-belt" aria-label="현장 가방"><div class="bag-head"><b>현장 가방 · ${tools.length}개</b><button data-bag>닫기</button></div><div class="bag-items">${tools.length ? tools.map((id) => `<button data-inspect-item="${id}" title="${escapeHtml(ITEM_INFO[id].description)}"><i>${ITEM_INFO[id].icon}</i><span>${escapeHtml(ITEM_INFO[id].name)}</span></button>`).join('') : '<span>아직 도구가 없다.</span>'}</div></aside>`;
 }
 function journalMarkup(): string {
   const entries = [...state.clues].map((id) => {
@@ -184,7 +202,7 @@ function memoryChoiceMarkup(): string {
   if (!state.pendingClue) return '';
   const clue = CLUES.find((candidate) => candidate.id === state.pendingClue);
   if (!clue) return '';
-  return `<aside class="screen-overlay memory-choice" role="dialog" aria-modal="true" aria-labelledby="memory-title"><section><span>찾은 기억</span><h2 id="memory-title">${escapeHtml(clue.title)}</h2><p>${escapeHtml(clue.text)}</p><button data-memory="record">믿는다 · 기억을 남긴다</button><button data-memory="delete">의심한다 · 기억을 지운다</button><button data-cancel-memory>지금은 결정하지 않는다</button></section></aside>`;
+  return `<aside class="screen-overlay memory-choice" role="dialog" aria-modal="true" aria-labelledby="memory-title"><section><span>찾은 기억 · 이 판단은 마지막 선택을 바꾼다</span><h2 id="memory-title">${escapeHtml(clue.title)}</h2><p>${escapeHtml(clue.text)}</p><button data-memory="record">믿는다 · 이 기억으로 하윤을 찾는다</button><button data-memory="delete">의심한다 · 방송이 만든 기억으로 본다</button><button data-cancel-memory>지금은 결정하지 않는다</button></section></aside>`;
 }
 function endingMarkup(): string {
   if (!state.ending) return '';
@@ -204,13 +222,13 @@ function render(): void {
   const openLocations = availableLocations(state);
   const placeNumber = LOCATION_ORDER.indexOf(state.location) + 1;
   app.innerHTML = `<main class="game ${paused ? 'paused' : ''} ${detailOpen ? 'is-detail' : ''} ${state.ending ? 'has-ending' : ''}">
-    <header><div><span>산속 실종 · 23:30</span><h1>자정 <em>주파수</em></h1></div><nav><i>● 자동 저장</i><button data-journal>기억 보기 ${state.clues.size}/3</button><button data-pause>${paused ? '계속하기' : '멈추기'}</button><button data-reset>처음부터 하기</button></nav></header>
+    <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="퍼즐 ${puzzleSolved()}/5 완료">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>기억 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
     <section class="viewport" aria-label="${escapeHtml(location.title)}"><div class="place"><small>장소 ${String(placeNumber).padStart(2, '0')} · ${openLocations.length}/10 열림</small><h2>${escapeHtml(location.title)}</h2><p>${escapeHtml(location.subtitle)}</p></div>${sceneMarkup()}
       ${!detailOpen ? '<button class="turn left" data-turn="-1" aria-label="이전 장소">‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="다음 장소">›<span>다음</span></button>' : ''}
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
     </section>
-    <section class="lower"><aside class="objective"><span>현재 목표</span><strong>${objective()}</strong><small>${hint()}</small><div class="progress">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div></aside>${toolBelt()}</section>
-    ${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button></aside>' : ''}${endingMarkup()}
+    <p class="field-hint"><b>현장 힌트</b>${hint()}</p>${bagOpen ? toolBelt() : ''}
+    ${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}
   </main>`;
   bind();
   const modalFocusTarget = state.pendingClue ? '[data-memory]' : introOpen ? '[data-start]' : journalOpen ? '[data-journal].overlay-close' : paused ? '.pause-card [data-pause]' : state.ending ? '[data-reset]' : '';
@@ -245,7 +263,7 @@ function resetGame(): void {
   if (!confirm('현재 진행을 모두 지우고 처음부터 시작할까요?')) return;
   localStorage.removeItem(SAVE_KEY);
   for (const key of LEGACY_KEYS) localStorage.removeItem(key);
-  state = initialState(); detailOpen = false; journalOpen = false; paused = false; introOpen = true; puzzleDraft = []; render();
+  state = initialState(); detailOpen = false; journalOpen = false; bagOpen = false; paused = false; introOpen = true; puzzleDraft = []; render();
 }
 function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-turn]').forEach((button) => button.onclick = () => { detailOpen = false; puzzleDraft = []; commit(move(state, Number(button.dataset.turn) as -1 | 1)); });
@@ -261,6 +279,7 @@ function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-memory]').forEach((button) => button.onclick = () => commit(resolveEditorialChoice(state, button.dataset.memory as EditorialAction, false), true));
   document.querySelector<HTMLElement>('[data-cancel-memory]')?.addEventListener('click', () => commit(cancelPendingClue(state), true));
   document.querySelectorAll<HTMLElement>('[data-journal]').forEach((button) => button.onclick = () => { if (!journalOpen) restoreFocusSelector = 'header [data-journal]'; journalOpen = !journalOpen; render(); });
+  document.querySelectorAll<HTMLElement>('[data-bag]').forEach((button) => button.onclick = () => { bagOpen = !bagOpen; render(); });
   document.querySelectorAll<HTMLElement>('[data-pause]').forEach((button) => button.onclick = () => { if (!paused) restoreFocusSelector = 'header [data-pause]'; paused = !paused; render(); });
   document.querySelectorAll<HTMLElement>('[data-reset]').forEach((button) => button.onclick = resetGame);
   document.querySelector<HTMLElement>('[data-start]')?.addEventListener('click', () => { restoreFocusSelector = '[data-open-detail]'; introOpen = false; sessionStorage.setItem('midnight-frequency-intro-seen', '1'); render(); });
