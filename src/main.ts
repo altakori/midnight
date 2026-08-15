@@ -41,6 +41,8 @@ let paused = false;
 let introOpen = !sessionStorage.getItem('midnight-frequency-intro-seen');
 let puzzleDraft: string[] = [];
 let restoreFocusSelector = '';
+let revealedItem: ItemId | null = null;
+let revealTimer: number | undefined;
 
 const PUZZLE_META = {
   transmitter: {
@@ -97,6 +99,7 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 }
 function asset(path: string): string { return `${import.meta.env.BASE_URL}${path}`; }
+function itemArt(id: ItemId): string { return asset(`art/radio/items/${id}.webp`); }
 function puzzleSolved(): number {
   return [state.frequency, state.breaker, state.recordings, state.flashlight, state.finalStatement].filter((puzzle) => puzzle.status === 'solved').length;
 }
@@ -187,7 +190,12 @@ function endingChoicesMarkup(): string {
 }
 function toolBelt(): string {
   const tools = state.inventory.filter((id): id is ItemId => Boolean(ITEM_INFO[id]));
-  return `<aside class="tool-belt" aria-label="현장 가방"><div class="bag-head"><b>현장 가방 · ${tools.length}개</b><button data-bag>닫기</button></div><div class="bag-items">${tools.length ? tools.map((id) => `<button data-inspect-item="${id}" title="${escapeHtml(ITEM_INFO[id].description)}"><i>${ITEM_INFO[id].icon}</i><span>${escapeHtml(ITEM_INFO[id].name)}</span></button>`).join('') : '<span>아직 도구가 없다.</span>'}</div></aside>`;
+  return `<aside class="tool-belt" aria-label="현장 가방"><div class="bag-head"><b>현장 가방 · ${tools.length}개</b><button data-bag>닫기</button></div><div class="bag-items">${tools.length ? tools.map((id) => `<button data-inspect-item="${id}" title="${escapeHtml(ITEM_INFO[id].description)}"><img src="${itemArt(id)}" alt=""><span><b>${escapeHtml(ITEM_INFO[id].name)}</b><small>${escapeHtml(ITEM_INFO[id].description)}</small></span></button>`).join('') : '<span>아직 도구가 없다.</span>'}</div></aside>`;
+}
+function collectibleRevealMarkup(): string {
+  if (!revealedItem) return '';
+  const info = ITEM_INFO[revealedItem];
+  return `<aside class="collectible-reveal" role="status"><img src="${itemArt(revealedItem)}" alt=""><div><small>새 도구 획득</small><b>${escapeHtml(info.name)}</b><span>${escapeHtml(info.description)}</span></div></aside>`;
 }
 function journalMarkup(): string {
   const entries = [...state.clues].map((id) => {
@@ -228,7 +236,7 @@ function render(): void {
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
     </section>
     <p class="field-hint"><b>현장 힌트</b>${hint()}</p>${bagOpen ? toolBelt() : ''}
-    ${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}
+    ${collectibleRevealMarkup()}${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}
   </main>`;
   bind();
   const modalFocusTarget = state.pendingClue ? '[data-memory]' : introOpen ? '[data-start]' : journalOpen ? '[data-journal].overlay-close' : paused ? '.pause-card [data-pause]' : state.ending ? '[data-reset]' : '';
@@ -259,17 +267,31 @@ function attemptCurrentPuzzle(): void {
   else if (state.location === 'studio') next = selectFlashlightFilter(state, puzzleDraft);
   commit(next);
 }
+function dismissReveal(): void {
+  revealedItem = null;
+  if (revealTimer) window.clearTimeout(revealTimer);
+  revealTimer = undefined;
+}
 function resetGame(): void {
   if (!confirm('현재 진행을 모두 지우고 처음부터 시작할까요?')) return;
+  dismissReveal();
   localStorage.removeItem(SAVE_KEY);
   for (const key of LEGACY_KEYS) localStorage.removeItem(key);
   state = initialState(); detailOpen = false; journalOpen = false; bagOpen = false; paused = false; introOpen = true; puzzleDraft = []; render();
 }
 function bind(): void {
-  document.querySelectorAll<HTMLElement>('[data-turn]').forEach((button) => button.onclick = () => { detailOpen = false; puzzleDraft = []; commit(move(state, Number(button.dataset.turn) as -1 | 1)); });
+  document.querySelectorAll<HTMLElement>('[data-turn]').forEach((button) => button.onclick = () => { dismissReveal(); detailOpen = false; puzzleDraft = []; commit(move(state, Number(button.dataset.turn) as -1 | 1)); });
   document.querySelector<HTMLElement>('[data-open-detail]')?.addEventListener('click', () => { detailOpen = true; puzzleDraft = []; render(); });
   document.querySelector<HTMLElement>('[data-close-detail]')?.addEventListener('click', () => { detailOpen = false; puzzleDraft = []; render(); });
-  document.querySelectorAll<HTMLElement>('[data-hotspot]').forEach((button) => button.onclick = () => { restoreFocusSelector = '[data-close-detail]'; commit(inspectHotspot(state, button.dataset.hotspot!), true); });
+  document.querySelectorAll<HTMLElement>('[data-hotspot]').forEach((button) => button.onclick = () => {
+    const spot = visibleHotspots(state).find((candidate) => candidate.id === button.dataset.hotspot);
+    if (spot?.reward.type === 'item') {
+      revealedItem = spot.reward.id;
+      if (revealTimer) window.clearTimeout(revealTimer);
+      revealTimer = window.setTimeout(() => { revealedItem = null; revealTimer = undefined; render(); }, 2600);
+    }
+    restoreFocusSelector = '[data-close-detail]'; commit(inspectHotspot(state, button.dataset.hotspot!), true);
+  });
   document.querySelectorAll<HTMLElement>('[data-inspect-item]').forEach((button) => button.onclick = () => commit(inspect(state, button.dataset.inspectItem as ItemId), true));
   document.querySelectorAll<HTMLElement>('[data-puzzle-value]').forEach((button) => button.onclick = () => { const value = button.dataset.puzzleValue!; if (!puzzleDraft.includes(value)) puzzleDraft.push(value); render(); });
   document.querySelector<HTMLElement>('[data-puzzle-reset]')?.addEventListener('click', () => { puzzleDraft = []; render(); });
@@ -278,9 +300,9 @@ function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-ending]').forEach((button) => button.onclick = () => commit(chooseEnding(state, button.dataset.ending as Ending)));
   document.querySelectorAll<HTMLElement>('[data-memory]').forEach((button) => button.onclick = () => commit(resolveEditorialChoice(state, button.dataset.memory as EditorialAction, false), true));
   document.querySelector<HTMLElement>('[data-cancel-memory]')?.addEventListener('click', () => commit(cancelPendingClue(state), true));
-  document.querySelectorAll<HTMLElement>('[data-journal]').forEach((button) => button.onclick = () => { if (!journalOpen) restoreFocusSelector = 'header [data-journal]'; journalOpen = !journalOpen; render(); });
-  document.querySelectorAll<HTMLElement>('[data-bag]').forEach((button) => button.onclick = () => { bagOpen = !bagOpen; render(); });
-  document.querySelectorAll<HTMLElement>('[data-pause]').forEach((button) => button.onclick = () => { if (!paused) restoreFocusSelector = 'header [data-pause]'; paused = !paused; render(); });
+  document.querySelectorAll<HTMLElement>('[data-journal]').forEach((button) => button.onclick = () => { dismissReveal(); if (!journalOpen) restoreFocusSelector = 'header [data-journal]'; journalOpen = !journalOpen; render(); });
+  document.querySelectorAll<HTMLElement>('[data-bag]').forEach((button) => button.onclick = () => { dismissReveal(); bagOpen = !bagOpen; render(); });
+  document.querySelectorAll<HTMLElement>('[data-pause]').forEach((button) => button.onclick = () => { dismissReveal(); if (!paused) restoreFocusSelector = 'header [data-pause]'; paused = !paused; render(); });
   document.querySelectorAll<HTMLElement>('[data-reset]').forEach((button) => button.onclick = resetGame);
   document.querySelector<HTMLElement>('[data-start]')?.addEventListener('click', () => { restoreFocusSelector = '[data-open-detail]'; introOpen = false; sessionStorage.setItem('midnight-frequency-intro-seen', '1'); render(); });
 }
@@ -292,7 +314,7 @@ window.addEventListener('keydown', (event) => {
   if (paused) { if (event.key === 'Escape') { paused = false; render(); } return; }
   if (state.ending) return;
   if (event.key === 'Escape' && detailOpen) { detailOpen = false; puzzleDraft = []; render(); return; }
-  if (!detailOpen && (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft')) commit(move(state, -1));
-  if (!detailOpen && (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight')) commit(move(state, 1));
+  if (!detailOpen && (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft')) { dismissReveal(); commit(move(state, -1)); }
+  if (!detailOpen && (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight')) { dismissReveal(); commit(move(state, 1)); }
 });
 render();

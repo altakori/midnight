@@ -52,3 +52,14 @@
 .physical-hotspot:hover b,.physical-hotspot:focus-visible b{opacity:1}@keyframes hotspotPulse{50%{transform:scale(1.12);text-shadow:0 0 12px #ffd487}}
 .mobile-signal{display:none}
 @media(max-width:760px){.physical-hotspot b{opacity:1;top:48px;font-size:9px}.header-objective .progress{display:none}.mobile-signal{position:absolute;right:13px;bottom:9px;display:flex;align-items:end;gap:3px}.mobile-signal i{display:block;width:4px;height:7px;background:#40505a}.mobile-signal i:nth-child(2){height:10px}.mobile-signal i:nth-child(3){height:13px}.mobile-signal i.lit{background:var(--amber);box-shadow:0 0 7px #d58a35}}
+
+/* Illustrated collectibles */
+.tool-belt .bag-items>button{grid-template-columns:72px minmax(0,1fr);align-items:center;gap:10px;min-height:76px;padding:6px;border:1px solid #384b55;background:#0a161e;text-align:left;overflow:hidden}
+.tool-belt .bag-items>button img{display:block;width:72px;height:72px;object-fit:cover;border:1px solid #596d75;background:#071019;filter:saturate(.9)}
+.tool-belt .bag-items>button span{display:grid;gap:3px;white-space:normal}
+.tool-belt .bag-items>button span b{color:#e4d9c7;font-size:11px}.tool-belt .bag-items>button span small{display:-webkit-box;overflow:hidden;color:#91a2a7;font-size:9px;line-height:1.35;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.collectible-reveal{position:fixed;z-index:55;right:clamp(14px,4vw,58px);bottom:24px;display:grid;grid-template-columns:92px minmax(0,230px);gap:12px;width:min(350px,calc(100% - 28px));padding:8px;border:1px solid #a27742;background:#07131ef2;box-shadow:0 18px 55px #000d,0 0 28px #d58a3524;pointer-events:none;animation:collectibleIn .28s ease-out}
+.collectible-reveal img{width:92px;height:92px;object-fit:cover;border:1px solid #705b3d}.collectible-reveal div{display:grid;align-content:center;gap:4px}.collectible-reveal small{color:var(--amber);font-size:9px;letter-spacing:.13em}.collectible-reveal b{font:600 18px Georgia,"Batang",serif;color:#f0e8db}.collectible-reveal span{color:#aab6b8;font-size:10px;line-height:1.45}
+@keyframes collectibleIn{from{opacity:0;transform:translateY(16px) scale(.96)}}
+@media(max-width:760px){.tool-belt .bag-items>button{grid-template-columns:64px 1fr;min-height:68px}.tool-belt .bag-items>button img{width:64px;height:64px}.collectible-reveal{right:10px;bottom:10px;grid-template-columns:72px 1fr}.collectible-reveal img{width:72px;height:72px}}
+@media(prefers-reduced-motion:reduce){.collectible-reveal{animation:none}}
