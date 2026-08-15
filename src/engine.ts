@@ -1,111 +1,129 @@
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
-export type Location = 'square' | 'forest' | 'well' | 'printshop' | 'archive-entrance' | 'archive-stacks' | 'classroom' | 'chapel' | 'river' | 'editor-room';
-export type ItemId = 'bent-type' | 'red-thread' | 'hook-type' | 'empty-lamp' | 'glowing-mushroom' | 'sentence-lamp' | 'archive-key' | 'chalk' | 'child-slate' | 'restored-slate' | 'red-wax' | 'candle-stub' | 'witness-candle' | 'paper-boat' | 'press-plate' | 'proof-boat';
-export type FragmentId = 'child-name' | 'witness-name' | 'third-name';
+export type Location = 'entrance' | 'lobby' | 'hall' | 'transmitter' | 'power' | 'archive' | 'studio' | 'passage' | 'booth' | 'roof';
+export type ItemId = 'handheld-radio' | 'frequency-card' | 'insulated-gloves' | 'breaker-key' | 'recording-reel' | 'station-log' | 'flashlight' | 'color-filters' | 'sibling-photo' | 'roof-key' | 'memory-tape';
 export type Ending = 'restore' | 'erase' | 'human';
 export type EditorialAction = 'record' | 'delete';
+export type PuzzleStatus = 'locked' | 'active' | 'solved';
 export type HotspotReward = { type: 'item'; id: ItemId } | { type: 'clue'; id: string };
 export interface Hotspot { id: string; label: string; location: Location; reward: HotspotReward; requiresArchive?: boolean }
 export interface Clue { id: string; title: string; text: string; location: Location }
+export interface PuzzleState { status: PuzzleStatus; attempts: number; input: string[]; feedback: string }
 export interface GameState {
   version: number; location: Location; inventory: ItemId[]; found: Set<string>; clues: Set<string>;
-  unlocked: boolean; archiveLit: boolean; fragments: FragmentId[]; shadowSeen: boolean;
+  unlocked: boolean; archiveLit: boolean; shadowSeen: boolean;
   tension: number; failedActions: number; message: string; ending?: Ending;
   editorialScore: number; ink: number; correctionFluid: number; contradictions: number;
   clueDecisions: Record<string, EditorialAction>; pendingClue?: string;
+  frequency: PuzzleState; breaker: PuzzleState; recordings: PuzzleState; flashlight: PuzzleState; finalStatement: PuzzleState;
+  rememberedSibling: boolean;
 }
 
-export const LOCATION_ORDER: Location[] = ['square', 'forest', 'well', 'printshop', 'archive-entrance', 'archive-stacks', 'classroom', 'chapel', 'river', 'editor-room'];
-export const LOCATIONS: Record<Location, { title: string; subtitle: string; act: 1 | 2 | 3; art: string }> = {
-  square: { title: '종이 광장', subtitle: '타지 않은 원고들이 집 모양으로 접혀 있다.', act: 1, art: 'square' },
-  forest: { title: '여백의 숲', subtitle: '나무 사이의 빈칸에 당신의 이름이 떠오른다.', act: 1, art: 'forest' },
-  well: { title: '잉크 우물', subtitle: '검은 물 아래에서 금속 물체가 천천히 돈다.', act: 1, art: 'well' },
-  printshop: { title: '폐쇄된 인쇄소', subtitle: '차가운 활자판 위에 따뜻한 문장이 남아 있다.', act: 1, art: 'printshop' },
-  'archive-entrance': { title: '중앙기록관 입구', subtitle: '문 너머에서 수천 장의 종이가 바스락거린다.', act: 1, art: 'archive-exterior' },
-  'archive-stacks': { title: '중앙기록관 서고', subtitle: '서가 사이에서 사라진 이름을 부르는 소리가 난다.', act: 2, art: 'archive-interior' },
-  classroom: { title: '버려진 교실', subtitle: '칠판에서 지워진 이름이 희미하게 보인다.', act: 2, art: 'classroom' },
-  chapel: { title: '종이 예배당', subtitle: '불 꺼진 제단에 붉은 밀랍 자국이 남아 있다.', act: 2, art: 'chapel' },
-  river: { title: '검은 강둑', subtitle: '종이배들이 물살을 거슬러 기록관으로 간다.', act: 2, art: 'riverbank' },
-  'editor-room': { title: '편집자의 방', subtitle: '책상 위에 마지막 원고와 당신의 삭제 목록이 놓여 있다.', act: 3, art: 'editor-office' },
+export const LOCATION_ORDER: Location[] = ['entrance', 'lobby', 'hall', 'transmitter', 'power', 'archive', 'studio', 'passage', 'booth', 'roof'];
+export const LOCATIONS: Record<string, { title: string; subtitle: string; act: 1 | 2 | 3; art: string }> = {
+  entrance: { title: '폭풍 속 산속 방송국 입구', subtitle: '번개가 철문을 때리고, 안에서 동생의 목소리가 들린다.', act: 1, art: 'entrance' },
+  lobby: { title: '젖은 로비', subtitle: '벽시계는 자정 30분 전에 멈췄다.', act: 1, art: 'lobby' },
+  hall: { title: '긴 복도', subtitle: '낡은 스피커가 당신의 최근 기억부터 지운다.', act: 1, art: 'hall' },
+  transmitter: { title: '송신실', subtitle: '폭풍 잡음 속에서 주파수 순서가 반복된다.', act: 1, art: 'transmitter' },
+  power: { title: '전력실', subtitle: '차단기에 누군가 급히 남긴 연결 순서가 있다.', act: 1, art: 'power' },
+  archive: { title: '방송 기록 보관실', subtitle: '날짜가 없는 테이프들이 선반에 쌓여 있다.', act: 2, art: 'archive' },
+  studio: { title: '녹음실', subtitle: '마지막 녹음에서 동생의 목소리가 들린다.', act: 2, art: 'studio' },
+  passage: { title: '숨은 통로', subtitle: '색 필터를 비춘 벽에 숨은 길이 나타난다.', act: 2, art: 'passage' },
+  booth: { title: '심야 방송실', subtitle: '마이크에서 기억을 지우는 거짓 방송이 반복된다.', act: 3, art: 'booth' },
+  roof: { title: '안테나 지붕', subtitle: '자정이 다가온다. 동생을 구할지, 방송을 지울지 결정해야 한다.', act: 3, art: 'roof' },
 };
 
 export const ITEM_INFO: Record<ItemId, { name: string; icon: string; description: string }> = {
-  'bent-type': { name: '휘어진 활자', icon: '⌁', description: '끝이 갈고리 모양으로 휘어진 낡은 활자다.' },
-  'red-thread': { name: '허수아비의 붉은 실', icon: '〰', description: '비가 오지 않았는데도 축축하다.' },
-  'hook-type': { name: '갈고리 활자', icon: '⟆', description: '우물 아래의 작은 물건을 걸어 올릴 수 있다.' },
-  'empty-lamp': { name: '빈 문장 등잔', icon: '◈', description: '기름 대신 빛나는 것을 넣는 등잔이다.' },
-  'glowing-mushroom': { name: '빛나는 버섯', icon: '✦', description: '교정 잉크처럼 푸르게 빛난다.' },
-  'sentence-lamp': { name: '문장 등잔', icon: '✧', description: '지워진 문장만 비추는 차가운 등불이다.' },
-  'archive-key': { name: '기록관 열쇠', icon: '⚿', description: '문단 기호 모양으로 깎인 무거운 열쇠다.' },
-  chalk: { name: '분필 조각', icon: '▪', description: '지운 글자를 다시 쓰기에 충분히 길다.' },
-  'child-slate': { name: '아이의 석판', icon: '▣', description: '이름을 쓰는 칸만 깨끗하게 비어 있다.' },
-  'restored-slate': { name: '복원된 석판', icon: '▦', description: '희미한 아이의 이름이 다시 적혀 있다.' },
-  'red-wax': { name: '증언의 밀랍', icon: '●', description: '손끝에 닿자 누군가의 성이 떠오른다.' },
-  'candle-stub': { name: '꺼진 증언초', icon: '◒', description: '심지는 없지만 제단 가까이 가면 따뜻해진다.' },
-  'witness-candle': { name: '증언의 촛불', icon: '◉', description: '불꽃 속에서 말하는 입술이 계속 보인다.' },
-  'paper-boat': { name: '이름 없는 종이배', icon: '◇', description: '배 안쪽에 비어 있는 서명 칸이 있다.' },
-  'press-plate': { name: '젖지 않은 납판', icon: '▤', description: '강물에도 지워지지 않은 글씨가 눌려 있다.' },
-  'proof-boat': { name: '납판을 실은 종이배', icon: '◆', description: '물살을 거슬러 보낼 준비가 끝났다.' },
+  'handheld-radio': { name: '휴대용 라디오', icon: '◉', description: '폭풍 잡음 사이로 방송을 들을 수 있다.' },
+  'frequency-card': { name: '주파수 카드', icon: '▤', description: '송신실의 숫자 네 개가 번개가 친 순서대로 적혀 있다.' },
+  'insulated-gloves': { name: '절연 장갑', icon: '♧', description: '젖은 전선을 안전하게 만질 수 있다.' },
+  'breaker-key': { name: '차단기 열쇠', icon: '⚿', description: '전력실의 작은 차단기 덮개를 연다.' },
+  'recording-reel': { name: '녹음 릴', icon: '◎', description: '녹음 순서를 맞추면 재생할 수 있다.' },
+  'station-log': { name: '방송국 기록 일지', icon: '▥', description: '테이프의 날짜와 그날 일을 확인할 수 있다.' },
+  flashlight: { name: '색 필터 손전등', icon: '✦', description: '세 가지 색의 빛을 차례로 비출 수 있다.' },
+  'color-filters': { name: '색 필터 세트', icon: '◈', description: '벽에 남은 빛나는 자국을 확인할 수 있다.' },
+  'sibling-photo': { name: '동생 사진', icon: '▣', description: '기억이 지워져도 사진의 손글씨는 남아 있다.' },
+  'roof-key': { name: '지붕 열쇠', icon: '⚿', description: '안테나 지붕으로 가는 마지막 문을 연다.' },
+  'memory-tape': { name: '기억 테이프', icon: '◌', description: '진짜 목소리와 거짓 방송을 비교할 수 있다.' },
 };
 
 export const CLUES: Clue[] = [
-  { id: 'square-ledger', title: '광장 관리 장부', text: '이 마을은 주민 수가 아니라 문장에서 빠진 글자 수를 세었다.', location: 'square' },
-  { id: 'forest-margin', title: '나무껍질의 빈칸', text: '이 빈칸은 누군가를 숨기려고 만든 자리였다.', location: 'forest' },
-  { id: 'well-song', title: '우물의 노랫소리', text: '노래가 반복될 때마다 같은 세 이름이 검은 물속에서 들렸다.', location: 'well' },
-  { id: 'press-order', title: '인쇄 작업지', text: '삭제 지시: 아이, 증인, 마지막 서명. 보낸 사람의 이름은 번져 있다.', location: 'printshop' },
-  { id: 'entrance-note', title: '문 안쪽의 메모', text: '열쇠가 있어도 들어갈 용기가 없으면 문을 열 수 없다.', location: 'archive-entrance' },
-  { id: 'stack-catalog', title: '삭제 서고 목록', text: '삭제된 이름은 버려지지 않았다. 더 깊은 서가로 옮겨졌다.', location: 'archive-stacks' },
-  { id: 'class-roll', title: '출석부의 빈 줄', text: '한 아이의 이름만 칠판과 출석부에서 서로 다르게 지워졌다.', location: 'classroom' },
-  { id: 'class-desk', title: '마지막 책상의 낙서', text: '선생님, 제가 없어져도 제 자리는 치우지 마세요.', location: 'classroom' },
-  { id: 'chapel-testimony', title: '접힌 증언', text: '증인은 보았다고 말했다. 편집자는 보지 못했다고 고쳤다.', location: 'chapel' },
-  { id: 'chapel-register', title: '예배당 서명부', text: '누군가 서명을 숨기려고 그 위에 밀랍을 덮었다.', location: 'chapel' },
-  { id: 'river-proof', title: '강물에 젖지 않은 교정지', text: '세 번째 이름은 물에도 지워지지 않는 납판에 남아 있다.', location: 'river' },
-  { id: 'author-note', title: '필체 비교표', text: '삭제 목록의 글씨는 당신의 글씨와 같다. 하지만 날짜는 당신이 오기 전이다.', location: 'editor-room' },
+  { id: 'storm-note', title: '폭풍 경보 메모', text: '자정 방송을 들으면 최근 기억부터 사라진다.', location: 'lobby' },
+  { id: 'sibling-call', title: '하윤의 호출', text: '“거짓말을 고르면 문이 닫혀.”', location: 'studio' },
+  { id: 'false-script', title: '수상한 방송 내용', text: '방송에서는 하윤이 이미 산을 떠났다고 하지만, 기록에는 오늘 밤 날짜가 적혀 있다.', location: 'booth' },
 ];
 
 export const HOTSPOTS: Hotspot[] = [
-  { id: 'square-sign', label: '찢어진 간판', location: 'square', reward: { type: 'item', id: 'bent-type' } },
-  { id: 'square-book', label: '버려진 장부', location: 'square', reward: { type: 'clue', id: 'square-ledger' } },
-  { id: 'forest-thread', label: '허수아비 소매', location: 'forest', reward: { type: 'item', id: 'red-thread' } },
-  { id: 'forest-mushroom', label: '나무뿌리의 푸른빛', location: 'forest', reward: { type: 'item', id: 'glowing-mushroom' } },
-  { id: 'forest-bark', label: '글자가 벗겨진 나무', location: 'forest', reward: { type: 'clue', id: 'forest-margin' } },
-  { id: 'well-rim', label: '우물 벽의 긁힌 자국', location: 'well', reward: { type: 'clue', id: 'well-song' } },
-  { id: 'press-lamp', label: '인쇄기 옆 등잔', location: 'printshop', reward: { type: 'item', id: 'empty-lamp' } },
-  { id: 'press-order', label: '인쇄기 아래 작업지', location: 'printshop', reward: { type: 'clue', id: 'press-order' } },
-  { id: 'entrance-note', label: '문틈의 접힌 메모', location: 'archive-entrance', reward: { type: 'clue', id: 'entrance-note' } },
-  { id: 'stacks-catalog', label: '검게 칠한 서고 목록', location: 'archive-stacks', reward: { type: 'clue', id: 'stack-catalog' } },
-  { id: 'class-chalk', label: '칠판 아래 분필', location: 'classroom', reward: { type: 'item', id: 'chalk' }, requiresArchive: true },
-  { id: 'class-slate', label: '마지막 책상의 석판', location: 'classroom', reward: { type: 'item', id: 'child-slate' }, requiresArchive: true },
-  { id: 'class-roll', label: '교탁 속 출석부', location: 'classroom', reward: { type: 'clue', id: 'class-roll' }, requiresArchive: true },
-  { id: 'class-desk', label: '책상 밑의 낙서', location: 'classroom', reward: { type: 'clue', id: 'class-desk' }, requiresArchive: true },
-  { id: 'chapel-wax', label: '제단의 붉은 밀랍', location: 'chapel', reward: { type: 'item', id: 'red-wax' }, requiresArchive: true },
-  { id: 'chapel-candle', label: '꺼진 증언초', location: 'chapel', reward: { type: 'item', id: 'candle-stub' }, requiresArchive: true },
-  { id: 'chapel-fold', label: '의자 밑의 접힌 증언', location: 'chapel', reward: { type: 'clue', id: 'chapel-testimony' }, requiresArchive: true },
-  { id: 'chapel-book', label: '밀랍 덮인 서명부', location: 'chapel', reward: { type: 'clue', id: 'chapel-register' }, requiresArchive: true },
-  { id: 'river-boat', label: '갈대에 걸린 종이배', location: 'river', reward: { type: 'item', id: 'paper-boat' }, requiresArchive: true },
-  { id: 'river-plate', label: '물가의 검은 납판', location: 'river', reward: { type: 'item', id: 'press-plate' }, requiresArchive: true },
-  { id: 'river-proof', label: '젖지 않은 교정지', location: 'river', reward: { type: 'clue', id: 'river-proof' }, requiresArchive: true },
-  { id: 'editor-note', label: '책상 위 필체 대조표', location: 'editor-room', reward: { type: 'clue', id: 'author-note' }, requiresArchive: true },
+  { id: 'entrance-radio', label: '문 옆 휴대 라디오', location: 'entrance', reward: { type: 'item', id: 'handheld-radio' } },
+  { id: 'lobby-frequency', label: '젖은 주파수 카드', location: 'lobby', reward: { type: 'item', id: 'frequency-card' } },
+  { id: 'hall-gloves', label: '경비함의 절연 장갑', location: 'hall', reward: { type: 'item', id: 'insulated-gloves' } },
+  { id: 'transmitter-key', label: '송신기 아래 열쇠', location: 'transmitter', reward: { type: 'item', id: 'breaker-key' } },
+  { id: 'power-reel', label: '전력실의 녹음 릴', location: 'power', reward: { type: 'item', id: 'recording-reel' } },
+  { id: 'archive-log', label: '날짜가 적힌 기록 일지', location: 'archive', reward: { type: 'item', id: 'station-log' } },
+  { id: 'studio-flashlight', label: '방음벽 뒤의 손전등', location: 'studio', reward: { type: 'item', id: 'flashlight' } },
+  { id: 'studio-filters', label: '색 필터 상자', location: 'studio', reward: { type: 'item', id: 'color-filters' } },
+  { id: 'passage-photo', label: '벽 틈의 동생 사진', location: 'passage', reward: { type: 'item', id: 'sibling-photo' } },
+  { id: 'booth-memory', label: '마이크 아래의 기억 테이프', location: 'booth', reward: { type: 'item', id: 'memory-tape' } },
+  { id: 'roof-key', label: '안테나 사다리의 열쇠', location: 'roof', reward: { type: 'item', id: 'roof-key' } },
+  { id: 'lobby-storm-note', label: '로비의 경보 메모', location: 'lobby', reward: { type: 'clue', id: 'storm-note' } },
+  { id: 'studio-sibling-call', label: '녹음실의 호출 기록', location: 'studio', reward: { type: 'clue', id: 'sibling-call' } },
+  { id: 'booth-false-script', label: '방송실의 방송 기록', location: 'booth', reward: { type: 'clue', id: 'false-script' } },
 ];
 
-export function initialState(): GameState { return { version: SAVE_VERSION, location: 'square', inventory: [], found: new Set(), clues: new Set(), unlocked: false, archiveLit: false, fragments: [], shadowSeen: false, tension: 0, failedActions: 0, message: '검은 종이 같은 달 아래, 광장은 조용하다.', editorialScore: 0, ink: 2, correctionFluid: 1, contradictions: 0, clueDecisions: {} }; }
+const puzzle = (): PuzzleState => ({ status: 'locked', attempts: 0, input: [], feedback: '' });
+export function initialState(): GameState { return { version: SAVE_VERSION, location: 'entrance', inventory: [], found: new Set(), clues: new Set(), unlocked: false, archiveLit: false, shadowSeen: false, tension: 0, failedActions: 0, message: '폭풍이 치는 산속 방송국에서 자정 전에 동생을 찾아야 한다.', editorialScore: 0, ink: 2, correctionFluid: 1, contradictions: 0, clueDecisions: {}, frequency: puzzle(), breaker: puzzle(), recordings: puzzle(), flashlight: puzzle(), finalStatement: puzzle(), rememberedSibling: false }; }
 export function serialize(state: GameState): string { return JSON.stringify({ ...state, found: [...state.found], clues: [...state.clues] }); }
-export function deserialize(raw: string): GameState { const base = initialState(); const value = JSON.parse(raw); if (value.version !== SAVE_VERSION && value.version !== 5) throw Error('이 저장 데이터는 불러올 수 없다.'); const legacy = value.version === 5; return { ...base, ...value, version: SAVE_VERSION, found: new Set(value.found ?? []), clues: new Set(value.clues ?? []), inventory: [...new Set<ItemId>(value.inventory ?? [])], fragments: [...new Set<FragmentId>(value.fragments ?? [])], editorialScore: legacy ? 0 : value.editorialScore ?? 0, ink: legacy ? 2 : value.ink ?? 2, correctionFluid: legacy ? 1 : value.correctionFluid ?? 1, contradictions: legacy ? 0 : value.contradictions ?? 0, clueDecisions: legacy ? {} : value.clueDecisions ?? {}, pendingClue: legacy ? undefined : value.pendingClue }; }
+const ITEM_IDS = new Set<ItemId>(Object.keys(ITEM_INFO) as ItemId[]);
+const LOCATIONS_SET = new Set<Location>(LOCATION_ORDER);
+const PUZZLE_STATUSES = new Set<PuzzleStatus>(['locked', 'active', 'solved']);
+function isStringArray(value: unknown): value is string[] { return Array.isArray(value) && value.every((entry) => typeof entry === 'string'); }
+function isPuzzleState(value: unknown): value is PuzzleState {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<PuzzleState>;
+  return typeof candidate.status === 'string' && PUZZLE_STATUSES.has(candidate.status as PuzzleStatus)
+    && Number.isInteger(candidate.attempts) && Number(candidate.attempts) >= 0
+    && isStringArray(candidate.input) && typeof candidate.feedback === 'string';
+}
+export function deserialize(raw: string): GameState {
+  const value: unknown = JSON.parse(raw);
+  if (!value || typeof value !== 'object') return initialState();
+  const candidate = value as Partial<GameState> & { found?: unknown; clues?: unknown };
+  const puzzles = [candidate.frequency, candidate.breaker, candidate.recordings, candidate.flashlight, candidate.finalStatement];
+  const validEnding = candidate.ending === undefined || candidate.ending === 'restore' || candidate.ending === 'erase' || candidate.ending === 'human';
+  const validDecisions = candidate.clueDecisions && typeof candidate.clueDecisions === 'object'
+    && Object.values(candidate.clueDecisions).every((action) => action === 'record' || action === 'delete');
+  if (candidate.version !== SAVE_VERSION || typeof candidate.location !== 'string' || !LOCATIONS_SET.has(candidate.location as Location)
+    || !Array.isArray(candidate.inventory) || !candidate.inventory.every((id) => typeof id === 'string' && ITEM_IDS.has(id as ItemId))
+    || !isStringArray(candidate.found) || !isStringArray(candidate.clues) || !puzzles.every(isPuzzleState)
+    || !validEnding || !validDecisions || typeof candidate.message !== 'string') return initialState();
+  const base = initialState();
+  return { ...base, ...candidate, location: candidate.location as Location, ending: candidate.ending,
+    found: new Set(candidate.found), clues: new Set(candidate.clues), inventory: [...new Set(candidate.inventory as ItemId[])],
+    clueDecisions: candidate.clueDecisions as Record<string, EditorialAction>, frequency: candidate.frequency!, breaker: candidate.breaker!,
+    recordings: candidate.recordings!, flashlight: candidate.flashlight!, finalStatement: candidate.finalStatement! };
+}
 function patch(state: GameState, change: Partial<GameState>): GameState { return { ...state, ...change }; }
-export function locationAvailable(state: GameState, location: Location): boolean { if (location === 'archive-stacks') return state.unlocked; if (['classroom', 'chapel', 'river'].includes(location)) return state.archiveLit; if (location === 'editor-room') return state.archiveLit && state.fragments.length === 3; return true; }
+export function locationAvailable(state: GameState, location: Location): boolean { const index = LOCATION_ORDER.indexOf(location); if (index < 0) return false; if (location === 'archive') return state.breaker.status === 'solved'; if (location === 'studio') return state.recordings.status === 'solved'; if (location === 'passage') return state.flashlight.status === 'solved'; if (location === 'booth') return state.flashlight.status === 'solved'; if (location === 'roof') return state.finalStatement.status === 'solved'; return index <= 4 || (index === 5 && state.breaker.status === 'solved'); }
 export function availableLocations(state: GameState): Location[] { return LOCATION_ORDER.filter((location) => locationAvailable(state, location)); }
-export function move(state: GameState, direction: -1 | 1): GameState { const available = availableLocations(state); const index = available.indexOf(state.location); const location = available[(index + direction + available.length) % available.length] ?? available[0]; const tension = Math.min(100, state.tension + (state.archiveLit ? 4 : 0)); return patch(state, { location, tension, shadowSeen: state.archiveLit && tension >= 20, message: LOCATIONS[location].subtitle }); }
+export function move(state: GameState, direction: -1 | 1): GameState { const available = availableLocations(state); const index = Math.max(0, available.indexOf(state.location)); const location = available[(index + direction + available.length) % available.length] ?? available[0]; return patch(state, { location, tension: Math.min(100, state.tension + 2), message: LOCATIONS[location].subtitle }); }
 export function fail(state: GameState, message: string): GameState { return patch(state, { failedActions: state.failedActions + 1, tension: Math.min(100, state.tension + 2), message }); }
-export function visibleHotspots(state: GameState): Hotspot[] { return HOTSPOTS.filter((hotspot) => hotspot.location === state.location && !state.found.has(`hotspot:${hotspot.id}`) && (!hotspot.requiresArchive || state.archiveLit)); }
+export function visibleHotspots(state: GameState): Hotspot[] { return HOTSPOTS.filter((h) => h.location === state.location && !state.found.has(`hotspot:${h.id}`) && !(h.reward.type === 'clue' && state.clues.has(h.reward.id))); }
 export type EditorialActionState = { stage: 'normal' | 'warning' | 'cost' | 'deleted'; disabled: boolean; opposite: boolean; costsInk: boolean; canRestore: boolean };
 export function editorialActionState(state: GameState, action: EditorialAction): EditorialActionState { const opposite = (state.editorialScore > 0 && action === 'delete') || (state.editorialScore < 0 && action === 'record'); const magnitude = Math.abs(state.editorialScore); const stage = !opposite || magnitude < 2 ? 'normal' : magnitude === 2 ? 'warning' : magnitude <= 4 ? 'cost' : 'deleted'; return { stage, disabled: stage === 'deleted' || (stage === 'cost' && state.ink < 1), opposite, costsInk: stage === 'cost', canRestore: stage === 'deleted' && state.correctionFluid > 0 }; }
-export function cancelPendingClue(state: GameState): GameState { return state.pendingClue ? patch(state, { pendingClue: undefined, message: '결정하지 않고 문장을 원래 자리에 두었다.' }) : state; }
-export function inspectHotspot(state: GameState, hotspotId: string): GameState { const hotspot = visibleHotspots(state).find((candidate) => candidate.id === hotspotId); if (!hotspot) return fail(state, '이미 조사했거나 지금은 조사할 수 없다.'); if (hotspot.reward.type === 'item') { const found = new Set(state.found).add(`hotspot:${hotspot.id}`).add(hotspot.reward.id); return patch(state, { found, inventory: [...state.inventory, hotspot.reward.id], message: `물건을 발견했다: ${ITEM_INFO[hotspot.reward.id].name}.` }); } const clue = CLUES.find((entry) => entry.id === hotspot.reward.id)!; return patch(state, { pendingClue: clue.id, message: `${clue.title} · 이 문장을 본문에 기록할지 삭제할지 정하자.` }); }
-export function resolveEditorialChoice(state: GameState, action: EditorialAction, forceRestore = false): GameState { const clueId = state.pendingClue; if (!clueId || state.clues.has(clueId) || state.clueDecisions[clueId]) return fail(state, '결정할 문장이 없다.'); const status = editorialActionState(state, action); if (forceRestore ? !status.canRestore : status.disabled) return fail(state, forceRestore ? '이 선택은 수정액으로 되돌릴 수 없다.' : status.stage === 'cost' ? '잉크가 없다. 반대 선택을 할 수 없다.' : '이 인물에게 맞지 않는 선택이라 이미 삭제되었다.'); const hotspot = HOTSPOTS.find((candidate) => candidate.reward.type === 'clue' && candidate.reward.id === clueId); const clue = CLUES.find((candidate) => candidate.id === clueId); if (!hotspot || !clue) return fail(state, '원고에서 이 단서를 찾을 수 없다.'); const found = new Set(state.found).add(`hotspot:${hotspot.id}`); const contradictions = state.contradictions + (status.opposite && Math.abs(state.editorialScore) >= 2 ? 1 : 0); return patch(state, { found, clues: new Set(state.clues).add(clueId), clueDecisions: { ...state.clueDecisions, [clueId]: action }, pendingClue: undefined, editorialScore: state.editorialScore + (action === 'record' ? 1 : -1), ink: status.costsInk && !forceRestore ? state.ink - 1 : state.ink, correctionFluid: forceRestore ? state.correctionFluid - 1 : state.correctionFluid, contradictions, message: action === 'record' ? `문장을 본문에 기록했다: ${clue.title}` : `문장에 붉은 줄을 긋고 삭제했다: ${clue.title}` }); }
+export function cancelPendingClue(state: GameState): GameState { return state.pendingClue ? patch(state, { pendingClue: undefined }) : state; }
+export function inspectHotspot(state: GameState, hotspotId: string): GameState { const hotspot = visibleHotspots(state).find((h) => h.id === hotspotId); if (!hotspot) return fail(state, '이미 확인했거나 지금은 확인할 수 없다.'); if (hotspot.reward.type === 'item') return patch(state, { found: new Set(state.found).add(`hotspot:${hotspot.id}`), inventory: [...state.inventory, hotspot.reward.id], message: `도구를 찾았다: ${ITEM_INFO[hotspot.reward.id].name}.` }); const clue = CLUES.find((c) => c.id === hotspot.reward.id)!; return patch(state, { pendingClue: clue.id, message: `${clue.title}: 남길지 지울지 선택하자.` }); }
+export function resolveEditorialChoice(state: GameState, action: EditorialAction, forceRestore = false): GameState { const id = state.pendingClue; if (!id) return fail(state, '선택할 단서가 없다.'); const status = editorialActionState(state, action); if (forceRestore ? !status.canRestore : status.disabled) return fail(state, '지금은 그 선택을 할 수 없다.'); const spot = HOTSPOTS.find((h) => h.reward.type === 'clue' && h.reward.id === id)!; return patch(state, { found: new Set(state.found).add(`hotspot:${spot.id}`), clues: new Set(state.clues).add(id), pendingClue: undefined, clueDecisions: { ...state.clueDecisions, [id]: action }, editorialScore: state.editorialScore + (action === 'record' ? 1 : -1), ink: status.costsInk && !forceRestore ? state.ink - 1 : state.ink, contradictions: state.contradictions + (status.opposite ? 1 : 0), message: action === 'record' ? '단서를 남겼다.' : '단서를 지웠지만 흔적은 남았다.' }); }
 export function inspect(state: GameState, item: ItemId): GameState { return patch(state, { message: ITEM_INFO[item]?.description ?? state.message }); }
-export function combine(state: GameState, first: ItemId, second: ItemId): GameState { if (!state.inventory.includes(first) || !state.inventory.includes(second) || first === second) return fail(state, '서로 다른 소지품 두 개를 선택하자.'); const pair = new Set([first, second]); if (pair.has('bent-type') && pair.has('red-thread')) return craft(state, first, second, 'hook-type', '붉은 실로 휘어진 활자를 묶어 갈고리를 만들었다.'); if (pair.has('empty-lamp') && pair.has('glowing-mushroom')) return craft(state, first, second, 'sentence-lamp', '빛나는 버섯을 등잔에 넣었다. 푸른 문장 등불이 켜졌다.'); if (pair.has('chalk') && pair.has('child-slate')) return craft(state, first, second, 'restored-slate', '분필로 석판의 빈 이름 칸을 채웠다.'); if (pair.has('red-wax') && pair.has('candle-stub')) return craft(state, first, second, 'witness-candle', '붉은 밀랍으로 증언의 초를 만들었다.'); if (pair.has('paper-boat') && pair.has('press-plate')) return craft(state, first, second, 'proof-boat', '납판을 종이배 안에 넣고 접었다.'); return fail(state, '이 두 물건은 합칠 수 없다. 다른 조합을 찾아보자.'); }
-function craft(state: GameState, first: ItemId, second: ItemId, result: ItemId, message: string): GameState { return patch(state, { inventory: state.inventory.filter((item) => item !== first && item !== second).concat(result), found: new Set(state.found).add(result), message }); }
-function addFragment(state: GameState, fragment: FragmentId, consumed: ItemId, message: string): GameState { if (state.fragments.includes(fragment)) return state; return patch(state, { inventory: state.inventory.filter((item) => item !== consumed), fragments: [...state.fragments, fragment], tension: Math.min(100, state.tension + 12), message }); }
-export function useItem(state: GameState, item: ItemId, target: Location): GameState { if (!state.inventory.includes(item)) return fail(state, '그 물건은 소지품에 없다. 먼저 사용할 물건을 선택하자.'); if (target === 'well' && item === 'hook-type') return patch(state, { inventory: state.inventory.filter((x) => x !== item).concat('archive-key'), found: new Set(state.found).add('archive-key'), message: '갈고리로 우물에서 기록관 열쇠를 꺼냈다.' }); if (target === 'archive-entrance' && item === 'archive-key') return patch(state, { inventory: state.inventory.filter((x) => x !== item), unlocked: true, message: '기록관 문이 열렸다. 이제 안쪽 서고로 갈 수 있다.' }); if (target === 'archive-stacks' && item === 'sentence-lamp' && state.unlocked) return patch(state, { inventory: state.inventory.filter((x) => x !== item), archiveLit: true, shadowSeen: true, tension: 28, message: '등불이 삭제 명단을 비췄다. 이제 교실, 예배당, 강둑에서 세 이름을 되찾자.' }); if (target === 'classroom' && item === 'restored-slate') return addFragment(state, 'child-name', item, '석판의 이름이 출석부 빈 줄에 나타났다. 첫 번째 이름을 복원했다.'); if (target === 'chapel' && item === 'witness-candle') return addFragment(state, 'witness-name', item, '촛불 속에서 두 번째 이름이 나타났다. 이름을 복원했다.'); if (target === 'river' && item === 'proof-boat') return addFragment(state, 'third-name', item, '종이배가 강을 거슬러 갔다. 세 번째 이름이 본문으로 돌아왔다.'); return fail(state, `${LOCATIONS[target].title}에서는 ${ITEM_INFO[item].name}을(를) 사용할 수 없다.`); }
-export function chooseEnding(state: GameState, ending: Ending): GameState { if (state.location !== 'editor-room' || state.fragments.length !== 3 || !state.archiveLit) return fail(state, '아직 마지막 원고를 펼칠 수 없다. 세 이름을 모두 되찾고 편집자의 방으로 가자.'); if (ending === 'erase' && state.editorialScore >= 5) return fail(state, '지금까지 문장을 기록해 온 인물은 자신을 삭제할 수 없다.'); if (ending === 'restore' && state.editorialScore <= -5) return fail(state, '지금까지 문장을 삭제해 온 인물은 이름을 복원할 수 없다.'); if (ending === 'human' && !(state.contradictions >= 2 && Math.abs(state.editorialScore) <= 1)) return fail(state, '아직 이 결말을 고를 수 없다. 기록과 삭제를 번갈아 선택해 보자.'); const message = ending === 'restore' ? '세 이름을 본문에 되돌렸다. 마을의 창문마다 불이 켜진다.' : ending === 'erase' ? '명단 끝에 내 이름을 적었다. 붉은 그림자와 함께 내가 지워진다.' : '나는 사람이다. 편집자의 교정선이 내 삶을 대신 정할 수 없다.'; return patch(state, { ending, tension: ending === 'restore' ? 0 : ending === 'erase' ? 100 : 50, message }); }
+
+function attempt(state: GameState, key: 'frequency' | 'breaker' | 'recordings' | 'flashlight', input: string[], answer: string[], ready: boolean, success: string): GameState { const current = state[key]; if (!ready) return fail(state, '필요한 단서와 도구를 먼저 찾아야 한다.'); if (current.status === 'solved') return state; const correct = input.length === answer.length && input.every((v, i) => v.toLowerCase() === answer[i].toLowerCase()); const next: PuzzleState = { status: correct ? 'solved' : 'active', attempts: current.attempts + 1, input, feedback: correct ? success : '순서가 틀렸다. 장비가 울리고 폭풍 잡음이 커졌다.' }; return patch(state, { [key]: next, message: next.feedback, unlocked: key === 'breaker' && correct ? true : state.unlocked, archiveLit: key === 'frequency' && correct ? true : state.archiveLit, shadowSeen: key === 'flashlight' && correct ? true : state.shadowSeen, tension: Math.min(100, state.tension + (correct ? 0 : 4)) }); }
+export function attemptFrequency(state: GameState, sequence: string[]): GameState { return attempt(state, 'frequency', sequence, ['7', '3', '9', '1'], state.inventory.includes('handheld-radio') && state.inventory.includes('frequency-card'), '주파수가 맞았다. 방송 기록 보관실의 전원이 살아났다.'); }
+export function connectBreaker(state: GameState, order: string[]): GameState { return attempt(state, 'breaker', order, ['red', 'blue', 'yellow', 'black'], state.inventory.includes('insulated-gloves') && state.inventory.includes('breaker-key') && state.frequency.status === 'solved', '차단기가 순서대로 연결됐다. 안쪽 문이 열렸다.'); }
+export function arrangeRecordings(state: GameState, order: string[]): GameState { return attempt(state, 'recordings', order, ['storm', 'arrival', 'warning', 'erasure'], state.inventory.includes('recording-reel') && state.inventory.includes('station-log') && state.breaker.status === 'solved', '시간순 녹음이 재생됐다. 스튜디오에서 동생의 목소리가 들린다.'); }
+export function selectFlashlightFilter(state: GameState, colors: string[]): GameState { return attempt(state, 'flashlight', colors, ['blue', 'amber', 'red'], state.inventory.includes('flashlight') && state.inventory.includes('color-filters') && state.recordings.status === 'solved', '색의 순서가 벽에 숨은 통로를 드러냈다.'); }
+export const solveFrequency = attemptFrequency;
+export const solveBreaker = connectBreaker;
+export const solveRecordings = arrangeRecordings;
+export const solveFlashlight = selectFlashlightFilter;
+export const FINAL_STATEMENTS = ['하윤은 밤 11시 40분에 혼자 방송국을 떠났다.', '기억 삭제 방송은 자정에 가장 강해진다.', '숨은 통로는 스튜디오 뒤에서 옥상 계단으로 이어진다.'];
+export function chooseFinalStatement(state: GameState, statementIndex: number): GameState { if (state.location !== 'booth' && state.location !== 'roof') return fail(state, '심야 부스에서 방송 기록을 확인해야 한다.'); if (state.flashlight.status !== 'solved' || !state.inventory.includes('memory-tape')) return fail(state, '숨은 통로와 기억 테이프를 먼저 확인하자.'); const correct = statementIndex === 0; const next: PuzzleState = { status: correct ? 'solved' : 'active', attempts: state.finalStatement.attempts + 1, input: [String(statementIndex)], feedback: correct ? '거짓 방송을 찾아냈다. 마지막 문을 열 수 있다.' : '그 문장은 거짓이 아니다. 방송은 계속 기억을 지운다.' }; return patch(state, { finalStatement: next, message: next.feedback, rememberedSibling: correct, tension: Math.min(100, state.tension + (correct ? 0 : 5)) }); }
+export function chooseEnding(state: GameState, ending: Ending): GameState { if (state.location !== 'roof' || state.finalStatement.status !== 'solved' || !state.inventory.includes('roof-key')) return fail(state, '거짓 방송을 밝혀내고 지붕 열쇠를 찾아야 한다.'); if (ending === 'human' && state.contradictions < 1) return fail(state, '삭제와 기록 사이의 모순을 한 번은 직접 마주해야 한다.'); const message = ending === 'restore' ? '동생의 이름과 기억을 되돌리고 방송을 끊었다.' : ending === 'erase' ? '방송을 지웠지만, 동생을 찾은 기억도 함께 지워졌다.' : '거짓과 진실을 모두 기록하고 동생과 함께 산을 내려왔다.'; return patch(state, { ending, message, tension: ending === 'erase' ? 100 : ending === 'restore' ? 0 : 50 }); }

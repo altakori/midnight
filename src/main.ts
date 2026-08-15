@@ -1,84 +1,279 @@
 import './style.css';
-import { cancelPendingClue, chooseEnding, CLUES, combine, deserialize, editorialActionState, fail, HOTSPOTS, initialState, inspect, inspectHotspot, ITEM_INFO, LOCATION_ORDER, LOCATIONS, move, resolveEditorialChoice, serialize, useItem, visibleHotspots, type EditorialAction, type Ending, type GameState, type ItemId } from './engine';
+import {
+  CLUES,
+  FINAL_STATEMENTS,
+  ITEM_INFO,
+  LOCATION_ORDER,
+  LOCATIONS,
+  arrangeRecordings,
+  attemptFrequency,
+  availableLocations,
+  cancelPendingClue,
+  chooseEnding,
+  chooseFinalStatement,
+  connectBreaker,
+  deserialize,
+  fail,
+  initialState,
+  inspect,
+  inspectHotspot,
+  move,
+  resolveEditorialChoice,
+  selectFlashlightFilter,
+  serialize,
+  visibleHotspots,
+  type EditorialAction,
+  type Ending,
+  type GameState,
+  type ItemId,
+} from './engine';
 
-const SAVE_KEY = 'unwritten-village-submission-v6';
-const LEGACY_SAVE_KEY = 'unwritten-village-submission-v5';
+const SAVE_KEY = 'midnight-frequency-v7';
+const LEGACY_KEYS = ['unwritten-village-submission-v6', 'unwritten-village-submission-v5'];
 const app = document.querySelector<HTMLDivElement>('#app')!;
+
 let state = load();
-let selected: ItemId | undefined;
-let combineFirst: ItemId | undefined;
+let detailOpen = false;
 let journalOpen = false;
 let paused = false;
-let detailView: 0 | 1 | null = null;
-let introOpen = !sessionStorage.getItem('unwritten-intro-seen');
+let introOpen = !sessionStorage.getItem('midnight-frequency-intro-seen');
+let puzzleDraft: string[] = [];
+let restoreFocusSelector = '';
 
-type Zone = { label: string; entry: string };
-const DETAIL_ZONES: Record<keyof typeof LOCATIONS, [Zone, Zone]> = {
-  square: [{ label: '시청 앞 게시판', entry: '게시판과 간판을 가까이 보기' }, { label: '광장의 장부 더미', entry: '장부 더미를 가까이 보기' }],
-  forest: [{ label: '붉은 오두막 울타리', entry: '허수아비 소매를 가까이 보기' }, { label: '나무뿌리 아래', entry: '푸른 뿌리와 나무껍질을 가까이 보기' }],
-  well: [{ label: '우물 난간', entry: '난간의 긁힌 자국을 가까이 보기' }, { label: '검은 우물물', entry: '우물물을 가까이 보기' }],
-  printshop: [{ label: '인쇄기 작업대', entry: '등잔과 활자대를 가까이 보기' }, { label: '종이 보관 선반', entry: '종이 선반을 가까이 보기' }],
-  'archive-entrance': [{ label: '기록관 자물쇠', entry: '정문 자물쇠를 가까이 보기' }, { label: '문 안쪽 틈', entry: '문틈의 메모를 가까이 보기' }],
-  'archive-stacks': [{ label: '삭제 서고 통로', entry: '서가 통로를 가까이 보기' }, { label: '어두운 명단 선반', entry: '명단 선반을 가까이 보기' }],
-  classroom: [{ label: '마지막 책상', entry: '책상과 석판을 가까이 보기' }, { label: '칠판과 교탁', entry: '칠판 아래를 가까이 보기' }],
-  chapel: [{ label: '붉은 흔적이 있는 제단', entry: '제단을 가까이 보기' }, { label: '접힌 의자 줄', entry: '의자와 서명부를 가까이 보기' }],
-  river: [{ label: '갈대 선착장', entry: '갈대와 종이배를 가까이 보기' }, { label: '검은 강가', entry: '강가의 납판을 가까이 보기' }],
-  'editor-room': [{ label: '편집자의 책상', entry: '책상 위 원고를 가까이 보기' }, { label: '붉게 고친 원고 더미', entry: '교정한 원고 더미를 가까이 보기' }],
-};
-const CLUE_PROP_BY_ID: Record<string, string> = {
-  'square-ledger': 'clue-ledger.webp',
-  'forest-margin': 'clue-board.webp',
-  'well-song': 'clue-board.webp',
-  'press-order': 'clue-document.webp',
-  'entrance-note': 'clue-note.webp',
-  'stack-catalog': 'clue-ledger.webp',
-  'class-roll': 'clue-document.webp',
-  'class-desk': 'clue-note.webp',
-  'chapel-testimony': 'clue-document.webp',
-  'chapel-register': 'clue-ledger.webp',
-  'river-proof': 'clue-document.webp',
-  'author-note': 'clue-note.webp',
-};
-const HOTSPOT_GROUNDING: Record<string, { x: number; y: number; width: number; rotation: number }> = {
-  'square-sign': { x: 14, y: 57, width: 15, rotation: -5 }, 'square-book': { x: 62, y: 68, width: 13, rotation: 3 },
-  'forest-thread': { x: 67, y: 48, width: 13, rotation: -8 }, 'forest-mushroom': { x: 23, y: 70, width: 12, rotation: 2 }, 'forest-bark': { x: 48, y: 62, width: 15, rotation: -2 },
-  'well-rim': { x: 27, y: 59, width: 14, rotation: 4 }, 'press-lamp': { x: 28, y: 59, width: 13, rotation: -4 }, 'press-order': { x: 65, y: 67, width: 14, rotation: 2 },
-  'entrance-note': { x: 27, y: 61, width: 13, rotation: -3 }, 'stacks-catalog': { x: 66, y: 64, width: 14, rotation: 5 },
-  'class-chalk': { x: 20, y: 68, width: 10, rotation: -7 }, 'class-slate': { x: 67, y: 65, width: 15, rotation: 2 }, 'class-roll': { x: 45, y: 57, width: 13, rotation: -4 }, 'class-desk': { x: 12, y: 62, width: 12, rotation: 6 },
-  'chapel-wax': { x: 51, y: 51, width: 10, rotation: 2 }, 'chapel-candle': { x: 62, y: 47, width: 12, rotation: -2 }, 'chapel-fold': { x: 23, y: 73, width: 13, rotation: -5 }, 'chapel-book': { x: 20, y: 67, width: 14, rotation: 3 },
-  'river-boat': { x: 8, y: 66, width: 14, rotation: -4 }, 'river-plate': { x: 60, y: 54, width: 15, rotation: 2 }, 'river-proof': { x: 72, y: 48, width: 13, rotation: 10 },
-  'editor-note': { x: 57, y: 64, width: 14, rotation: 4 },
-};
-function load(): GameState { try { const current = localStorage.getItem(SAVE_KEY); const legacy = localStorage.getItem(LEGACY_SAVE_KEY); const raw = current ?? legacy; if (!raw) return initialState(); const loaded = deserialize(raw); if (!current || JSON.parse(raw).version !== loaded.version) localStorage.setItem(SAVE_KEY, serialize(loaded)); if (legacy) localStorage.removeItem(LEGACY_SAVE_KEY); return loaded; } catch { return initialState(); } }
+const PUZZLE_META = {
+  transmitter: {
+    key: 'frequency', title: '네 개의 다이얼', instruction: '주파수 카드의 번개 자국을 보고 숫자 네 개를 순서대로 누르자.',
+    options: [['7', '낮은 잡음'], ['3', '짧은 신호'], ['9', '긴 신호'], ['1', '아이의 호출음']], limit: 4,
+  },
+  power: {
+    key: 'breaker', title: '젖은 차단기', instruction: '안전 표시를 보고 케이블 네 개를 순서대로 연결하자.',
+    options: [['red', '빨강'], ['blue', '파랑'], ['yellow', '노랑'], ['black', '검정']], limit: 4,
+  },
+  archive: {
+    key: 'recordings', title: '순서가 뒤섞인 녹음', instruction: '사건이 일어난 순서대로 테이프를 놓자.',
+    options: [['storm', '① 폭풍 경보가 내려왔다'], ['arrival', '② 하윤이 방송국에 도착했다'], ['warning', '③ 하윤이 경고 방송을 남겼다'], ['erasure', '④ 기억 삭제 방송이 시작됐다']], limit: 4,
+  },
+  studio: {
+    key: 'flashlight', title: '빛에 반응하는 벽', instruction: '녹음에서 들은 색 순서대로 손전등 필터를 비추자.',
+    options: [['blue', '청록'], ['amber', '호박'], ['red', '빨강']], limit: 3,
+  },
+} as const;
+
+type PuzzleLocation = keyof typeof PUZZLE_META;
+
+function load(): GameState {
+  try {
+    const current = localStorage.getItem(SAVE_KEY);
+    if (current) return deserialize(current);
+    for (const key of LEGACY_KEYS) localStorage.removeItem(key);
+  } catch {
+    // Broken and old saves safely start over.
+  }
+  return initialState();
+}
+
 function save(): void { localStorage.setItem(SAVE_KEY, serialize(state)); }
-function commit(next: GameState): void { state = next; selected = undefined; combineFirst = undefined; save(); render(); }
-function escapeHtml(text: string): string { return text.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!); }
-function currentAct(): number { if (state.ending || state.fragments.length === 3) return 3; if (state.archiveLit) return 2; return 1; }
-function objective(): string { if (state.ending) return state.ending === 'restore' ? '지워진 이름들이 본문으로 돌아왔다.' : state.ending === 'erase' ? '마지막 이름을 지웠다.' : '이름 없는 한 사람이 원고 밖으로 나갔다.'; if (!state.unlocked) return '기록관 문을 열 도구와 어둠을 밝힐 빛을 찾자.'; if (!state.archiveLit) return '기록관 서고를 밝히고 삭제 명단을 찾자.'; if (state.fragments.length < 3) return `마을에 흩어진 이름 3개를 되찾자 · ${state.fragments.length}/3`; return '편집자의 방에서 마지막 문장을 고르자.'; }
-function hint(): string { if (state.failedActions < 3) return '화면에 보이는 물건을 조사하자. 소지품은 알맞은 장소에서 쓸 수 있다.'; if (state.inventory.includes('bent-type') && state.inventory.includes('red-thread')) return '휘어진 활자에 붉은 실을 묶어 보자.'; if (state.inventory.includes('empty-lamp') && state.inventory.includes('glowing-mushroom')) return '빛나는 버섯을 빈 등잔에 넣어 보자.'; if (state.inventory.includes('hook-type')) return '우물 아래에서 금속 소리가 난다. 갈고리를 써 보자.'; if (state.inventory.includes('restored-slate')) return '고친 석판을 교실의 아이 자리로 돌려놓자.'; if (state.inventory.includes('witness-candle')) return '증언의 촛불을 예배당 제단에 놓자.'; if (state.inventory.includes('proof-boat')) return '납판을 실은 배를 검은 강에 띄우자.'; return '기록을 열고 찾은 단서를 다시 읽어 보자.'; }
-function profile(): string { return Math.abs(state.editorialScore) < 2 ? '미정' : state.editorialScore > 0 ? '기록자' : '삭제자'; }
+function commit(next: GameState, keepDraft = false): void {
+  state = next;
+  if (!keepDraft) puzzleDraft = [];
+  save();
+  render();
+}
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
+}
 function asset(path: string): string { return `${import.meta.env.BASE_URL}${path}`; }
-function itemImage(id: ItemId): string { return asset(`art/items/${id}.webp`); }
-function clueImage(id: string): string { return asset(`art/items/${CLUE_PROP_BY_ID[id] ?? 'clue-document.webp'}`); }
-function itemCard(id: ItemId): string { return `<article class="item-card ${selected === id ? 'selected' : ''} ${combineFirst === id ? 'combine-first' : ''}"><button data-item="${id}" class="item-main"><img src="${itemImage(id)}" alt=""><span>${ITEM_INFO[id].name}</span></button><div><button data-inspect-item="${id}">보기</button><button data-combine="${id}">${combineFirst === id ? '취소' : '합치기'}</button></div></article>`; }
-const HOTSPOT_ZONE_OVERRIDES: Partial<Record<string, 0 | 1>> = {
-  'well-rim': 1,
-  'entrance-note': 1,
-  'stacks-catalog': 1,
-};
-function hotspotZone(id: string): 0 | 1 { const override = HOTSPOT_ZONE_OVERRIDES[id]; if (override !== undefined) return override; const locationHotspots = HOTSPOTS.filter((spot) => spot.location === state.location); return locationHotspots.findIndex((spot) => spot.id === id) % 2 as 0 | 1; }
-function hotspotMarkup(): string { const spots = visibleHotspots(state).filter((spot) => hotspotZone(spot.id) === detailView); return spots.map((spot) => { const image = spot.reward.type === 'item' ? itemImage(spot.reward.id) : clueImage(spot.reward.id); const position = HOTSPOT_GROUNDING[spot.id] ?? { x: 50, y: 60, width: 13, rotation: 0 }; return `<button class="detail-hotspot" data-hotspot="${spot.id}" aria-label="${spot.label} 자세히 보기" style="--hotspot-x:${position.x}%;--hotspot-y:${position.y}%;--hotspot-width:${position.width}%;--hotspot-rotation:${position.rotation}deg"><img src="${image}" alt=""></button>`; }).join(''); }
-function scene(): string { const location = LOCATIONS[state.location]; const canUse = ['well', 'archive-entrance', 'archive-stacks', 'classroom', 'chapel', 'river'].includes(state.location); if (detailView === null) { const artUrl = asset(`art/scenes/${location.art}.webp`); return `<div class="scene-bg location-${state.location} overview-bg" style="background-image:url('${artUrl}')"></div><div class="vignette"></div><div class="red-editor ${state.shadowSeen ? 'visible' : ''}" aria-hidden="true"><i></i></div>${DETAIL_ZONES[state.location].map((zone, index) => `<button class="area-entry entry-${state.location} entry-zone-${index}" data-enter-detail="${index}" aria-label="${zone.entry}"><span><small>구역 ${index + 1} · 가까이 보기</small><strong>${zone.label}</strong></span></button>`).join('')}<div class="red-scratch one"></div><div class="red-scratch two"></div>`; }
-  const zone = DETAIL_ZONES[state.location][detailView]; const artFolder = detailView === 0 ? 'details' : 'details-alt'; const artUrl = asset(`art/${artFolder}/${location.art}.webp`); return `<div class="scene-bg detail-bg location-${state.location} zone-${detailView}" style="background-image:url('${artUrl}')"></div><div class="vignette"></div><div class="red-editor ${state.shadowSeen ? 'visible' : ''}" aria-hidden="true"><i></i></div><button class="detail-back" data-leave-detail>장소 전체 보기</button>${hotspotMarkup()}${canUse ? `<button class="scene-use" data-use-scene>${selected ? `${ITEM_INFO[selected].name} 사용하기` : '먼저 물건 선택'}</button>` : ''}<div class="red-scratch one"></div><div class="red-scratch two"></div>`; }
-function journal(): string { const entries = [...state.clues].map((id) => { const clue = CLUES.find((entry) => entry.id === id); const decision = state.clueDecisions[id]; return clue ? `<article class="journal-entry ${decision === 'delete' ? 'deleted-clue' : decision === 'record' ? 'recorded-clue' : 'legacy-clue'}"><small>${LOCATIONS[clue.location].title}</small><h3>${escapeHtml(clue.title)}</h3><p>${escapeHtml(clue.text)}</p>${decision === 'delete' ? '<em>내가 지운 문장 · 붉은 줄 아래에 원문이 남아 있다</em>' : ''}</article>` : ''; }).join(''); return `<aside class="overlay journal"><button data-journal class="close">기록 닫기</button><span class="eyebrow">찾은 단서 ${state.clues.size}/12</span><h2>단서 기록</h2><p>남긴 문장과 지운 문장을 모두 볼 수 있다.</p><div class="journal-grid">${entries || '<i>아직 찾은 단서가 없다.</i>'}</div></aside>`; }
-function editorialOverlay(): string { if (!state.pendingClue) return ''; const clue = CLUES.find((entry) => entry.id === state.pendingClue); if (!clue) return ''; const choices = (['record', 'delete'] as EditorialAction[]).map((action) => { const status = editorialActionState(state, action); const label = action === 'record' ? '이 문장을 기록하기' : '이 문장을 붉은 줄로 지우기'; const note = status.stage === 'warning' ? '지금까지 한 선택과 다릅니다.' : status.stage === 'cost' ? status.disabled ? '잉크가 없어서 이 선택을 할 수 없습니다.' : '선택하면 잉크 1개를 씁니다.' : status.stage === 'deleted' ? '지금까지 만든 인물과 맞지 않아 선택할 수 없습니다.' : ''; return `<button class="editorial-choice ${action} ${status.stage}" data-editorial="${action}" ${status.disabled ? 'disabled' : ''}><span>[${label}]</span>${note ? `<small>${note}</small>` : ''}</button>`; }).join(''); const opposite: EditorialAction = state.editorialScore >= 0 ? 'delete' : 'record'; const canRestore = editorialActionState(state, opposite).canRestore; return `<aside class="overlay editorial-overlay" role="dialog" aria-modal="true" aria-labelledby="editorial-title"><div class="editorial-sheet"><span class="eyebrow">편집자의 메모</span><h2 id="editorial-title">${escapeHtml(clue.title)}</h2><p>${escapeHtml(clue.text)}</p><div class="editorial-choices">${choices}</div>${canRestore ? `<button class="correction-action" data-correction="${opposite}">수정액 1개로 막힌 선택 되살리기</button>` : ''}<button class="cancel-choice" data-cancel-clue>결정하지 않고 돌아가기</button></div></aside>`; }
-function ending(): string { if (!state.ending) return ''; const copy = state.ending === 'restore' ? ['새로 고친 원고', '세 이름이 본문으로 돌아왔다', '세 집의 창문에 불이 켜졌다. 마을에는 처음으로 내일이 왔다.'] : state.ending === 'erase' ? ['삭제 끝', '마지막으로 지운 이름은 나였다', '명단에서 내 이름이 사라졌다. 편집자의 붉은 선도 멈췄다.'] : ['내가 쓴 원고', '나는 사람이다', '나는 한 가지 역할로 정해지지 않았다. 내 선택을 안고 원고 밖으로 걸어 나왔다.']; return `<section class="ending-screen ${state.ending}"><div><small>${copy[0]}</small><h2>${copy[1]}</h2><p>${escapeHtml(state.message)}</p><b>${copy[2]}</b><button data-reset>처음부터 다시 조사하기</button></div></section>`; }
-function finalChoice(): string { if (!state.archiveLit || state.fragments.length !== 3 || state.location !== 'editor-room' || state.ending) return ''; const restoreLocked = state.editorialScore <= -5; const eraseLocked = state.editorialScore >= 5; const humanEligible = state.contradictions >= 2 && Math.abs(state.editorialScore) <= 1; const button = (ending: Ending, label: string, locked: boolean) => `<button class="ending-choice ${locked ? 'deleted-ending' : ''}" data-ending="${ending}" ${locked ? 'disabled' : ''}><span>${label}</span>${locked ? '<small>지금까지 만든 인물과 맞지 않아 선택할 수 없습니다.</small>' : ''}</button>`; return `<section class="final-choice"><span>마지막 원고</span><h2>마지막으로 본문에 누구의 이름을 남길까요?</h2>${button('restore', '세 사람의 이름을 본문에 되돌리기', restoreLocked)}${button('erase', '명단과 내 이름을 모두 지우기', eraseLocked)}${humanEligible ? button('human', '나는 사람이다.', false) : ''}</section>`; }
-function render(): void { const location = LOCATIONS[state.location]; const number = LOCATION_ORDER.indexOf(state.location) + 1; const zoneLabel = detailView === null ? location.subtitle : DETAIL_ZONES[state.location][detailView].label; app.innerHTML = `<main class="game ${paused ? 'paused' : ''} ${state.ending ? 'ended' : ''}"><header><div><span class="eyebrow">문장특별시 · 야간 조사 09</span><h1>쓰이지 않은 <em>마을</em></h1></div><nav><span class="save">● 자동 저장</span><button data-journal>단서 ${state.clues.size}/12</button><button data-pause>${paused ? '계속' : '멈춤'}</button><button data-reset>처음부터</button></nav></header><aside class="profile-margin" aria-label="현재 인물"><span>${profile()}</span><small>잉크 ${state.ink} · 수정액 ${state.correctionFluid}</small></aside><section class="viewport ${detailView !== null ? `is-detail detail-${state.location} zone-${detailView}` : ''}" aria-label="${location.title} ${detailView !== null ? `${zoneLabel} 자세히 보는 중` : '전체 모습'}"><div class="place"><small>장소 ${String(number).padStart(2, '0')} · ACT ${currentAct()}</small><h2>${location.title}</h2><p>${zoneLabel}</p></div>${scene()}${detailView === null ? '<button class="turn left" data-turn="-1" aria-label="이전 장소로 이동">‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="다음 장소로 이동">›<span>다음</span></button>' : ''}<p class="message" role="status">${escapeHtml(state.message)}</p><div class="tension"><span>편집자의 시선</span><b><i style="width:${state.tension}%"></i></b></div></section><section class="lower"><aside class="objective"><span class="eyebrow">목표</span><strong>${objective()}</strong><small>${hint()}</small><div class="fragment-row"><i class="${state.fragments.includes('child-name') ? 'found' : ''}">아이</i><i class="${state.fragments.includes('witness-name') ? 'found' : ''}">증인</i><i class="${state.fragments.includes('third-name') ? 'found' : ''}">서명</i></div></aside><section class="inventory"><div class="inventory-head"><b>소지품 ${state.inventory.length}</b><span>${selected ? `${ITEM_INFO[selected].name} 선택됨` : combineFirst ? '합칠 다른 물건 선택' : '선택 · 자세히 보기 · 합치기'}</span></div><div class="items">${state.inventory.length ? state.inventory.map(itemCard).join('') : '<i class="empty">소지품이 없다.</i>'}</div></section></section>${finalChoice()}${state.pendingClue ? editorialOverlay() : ''}${journalOpen ? journal() : ''}${paused ? '<aside class="overlay pause"><h2>조사 멈춤</h2><button data-pause>계속하기</button></aside>' : ''}${introOpen ? '<aside class="overlay intro"><small>야간 조사 안내</small><h2>사라진 이름을 찾자</h2><ol><li>왼쪽·오른쪽 화살표로 장소를 옮깁니다.</li><li>화면의 두 구역 중 하나를 눌러 가까이 봅니다.</li><li>보이는 물건을 조사하고, 소지품을 합치거나 사용합니다.</li></ol><button data-intro>조사 시작</button></aside>' : ''}${ending()}</main>`; bind(); if (state.pendingClue) document.querySelector<HTMLElement>('.editorial-choice:not(:disabled), .correction-action')?.focus(); }
-function useScene(): void { if (!selected) commit(fail(state, '먼저 소지품에서 사용할 물건을 선택하자.')); else commit(useItem(state, selected, state.location)); }
-function resetGame(): void { if (confirm('모든 조사 기록을 지우고 처음부터 시작할까요?')) { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(LEGACY_SAVE_KEY); state = initialState(); selected = undefined; combineFirst = undefined; journalOpen = false; paused = false; detailView = null; introOpen = true; render(); } }
-function finishEditorial(action: EditorialAction, forceRestore = false): void { const next = resolveEditorialChoice(state, action, forceRestore); const resolved = !next.pendingClue; commit(next); if (resolved) document.querySelector<HTMLElement>('[data-leave-detail]')?.focus(); }
-function dismissEditorial(): void { const clueId = state.pendingClue; const hotspot = HOTSPOTS.find((entry) => entry.reward.type === 'clue' && entry.reward.id === clueId); commit(cancelPendingClue(state)); if (hotspot) document.querySelector<HTMLElement>(`[data-hotspot="${hotspot.id}"]`)?.focus(); }
-function bind(): void { document.querySelectorAll<HTMLElement>('[data-turn]').forEach((button) => button.onclick = () => { if (!paused) { detailView = null; commit(move(state, Number(button.dataset.turn) as -1 | 1)); } }); document.querySelectorAll<HTMLElement>('[data-enter-detail]').forEach((button) => button.addEventListener('click', () => { detailView = Number(button.dataset.enterDetail) as 0 | 1; render(); })); document.querySelector<HTMLElement>('[data-leave-detail]')?.addEventListener('click', () => { detailView = null; render(); }); document.querySelectorAll<HTMLElement>('[data-hotspot]').forEach((button) => button.onclick = () => commit(inspectHotspot(state, button.dataset.hotspot!))); document.querySelector<HTMLElement>('[data-use-scene]')?.addEventListener('click', useScene); document.querySelectorAll<HTMLElement>('[data-item]').forEach((button) => button.onclick = () => { selected = selected === button.dataset.item ? undefined : button.dataset.item as ItemId; combineFirst = undefined; render(); }); document.querySelectorAll<HTMLElement>('[data-inspect-item]').forEach((button) => button.onclick = () => commit(inspect(state, button.dataset.inspectItem as ItemId))); document.querySelectorAll<HTMLElement>('[data-combine]').forEach((button) => button.onclick = () => { const id = button.dataset.combine as ItemId; if (!combineFirst) { combineFirst = id; selected = undefined; render(); } else if (combineFirst === id) { combineFirst = undefined; render(); } else { const first = combineFirst; combineFirst = undefined; commit(combine(state, first, id)); } }); document.querySelectorAll<HTMLElement>('[data-editorial]').forEach((button) => button.onclick = () => finishEditorial(button.dataset.editorial as EditorialAction)); document.querySelector<HTMLElement>('[data-correction]')?.addEventListener('click', (event) => finishEditorial((event.currentTarget as HTMLElement).dataset.correction as EditorialAction, true)); document.querySelector<HTMLElement>('[data-cancel-clue]')?.addEventListener('click', dismissEditorial); document.querySelectorAll<HTMLElement>('[data-ending]').forEach((button) => button.onclick = () => commit(chooseEnding(state, button.dataset.ending as Ending))); document.querySelectorAll<HTMLElement>('[data-journal]').forEach((button) => button.onclick = () => { journalOpen = !journalOpen; render(); }); document.querySelectorAll<HTMLElement>('[data-pause]').forEach((button) => button.onclick = () => { paused = !paused; render(); }); document.querySelectorAll<HTMLElement>('[data-intro]').forEach((button) => button.onclick = () => { introOpen = false; sessionStorage.setItem('unwritten-intro-seen', '1'); render(); }); document.querySelectorAll<HTMLElement>('[data-reset]').forEach((button) => button.onclick = resetGame); }
-window.addEventListener('keydown', (event) => { if (state.pendingClue) { if (event.key === 'Escape') dismissEditorial(); else if (event.key === 'Tab') { const controls = [...document.querySelectorAll<HTMLElement>('.editorial-overlay button:not(:disabled)')]; if (controls.length) { event.preventDefault(); const current = controls.indexOf(document.activeElement as HTMLElement); const next = event.shiftKey ? (current - 1 + controls.length) % controls.length : (current + 1) % controls.length; controls[next].focus(); } } return; } if (introOpen || paused || journalOpen || state.ending) return; if (event.key === 'Escape' && detailView !== null) { detailView = null; render(); return; } if (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft') { detailView = null; commit(move(state, -1)); } if (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight') { detailView = null; commit(move(state, 1)); } if (event.key.toLowerCase() === 'e' && detailView !== null && ['well', 'archive-entrance', 'archive-stacks', 'classroom', 'chapel', 'river'].includes(state.location)) useScene(); });
+function puzzleSolved(): number {
+  return [state.frequency, state.breaker, state.recordings, state.flashlight, state.finalStatement].filter((puzzle) => puzzle.status === 'solved').length;
+}
+function objective(): string {
+  if (state.ending) return '하윤과 함께 방송국을 빠져나왔다.';
+  if (state.frequency.status !== 'solved') return '송신실에서 주파수 다이얼 네 개를 맞추자.';
+  if (state.breaker.status !== 'solved') return '전력실 차단기에 케이블 네 개를 연결하자.';
+  if (state.recordings.status !== 'solved') return '보관실 테이프를 사건 순서대로 놓자.';
+  if (state.flashlight.status !== 'solved') return '스튜디오 벽에 색 필터를 비춰 숨은 문을 찾자.';
+  if (state.finalStatement.status !== 'solved') return '심야 부스에서 거짓 방송 하나를 골라 빼자.';
+  return '옥상으로 올라가 하윤을 찾자.';
+}
+function hint(): string {
+  if (state.failedActions < 2) return '장소를 가까이 보고 표시된 단서와 도구를 조사하자.';
+  if (state.location === 'transmitter') return '휴대 라디오에서 소리가 바뀐 순서를 주파수 카드와 비교하자.';
+  if (state.location === 'power') return '피복이 멀쩡한 선부터 연결하고 접지선으로 끝내자.';
+  if (state.location === 'archive') return '폭풍 경보 → 하윤 도착 → 경고 녹음 → 기억 삭제 방송 순서다.';
+  if (state.location === 'studio') return '녹음에서 들은 색은 청록, 호박, 빨강 순서다.';
+  if (state.location === 'booth') return '직접 확인한 장소와 시간에 맞지 않는 방송을 고르자.';
+  return '열린 장소를 다시 확인하고 놓친 장비를 찾자.';
+}
+function signalLabel(): string { return state.tension < 35 ? '약함' : state.tension < 70 ? '불안정' : '위험'; }
+
+function sceneMarkup(): string {
+  const location = LOCATIONS[state.location];
+  const art = asset(`art/radio/${location.art}.webp`);
+  const spots = visibleHotspots(state);
+  const sceneClass = detailOpen ? 'detail' : 'overview';
+  const hotspotButtons = detailOpen
+    ? spots.map((spot, index) => `<button class="physical-hotspot hotspot-${index % 3}" data-hotspot="${spot.id}"><span>${spot.reward.type === 'item' ? '도구' : '기억'}</span><strong>${escapeHtml(spot.label)}</strong></button>`).join('')
+    : '';
+  const puzzle = detailOpen ? puzzleMarkup() : '';
+  return `<div class="scene-image ${sceneClass}" style="background-image:url('${art}')"></div><div class="rain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>
+    ${detailOpen ? `<button class="back-to-scene" data-close-detail>장소 전체 보기</button>${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
+}
+function puzzleEntryLabel(): string {
+  if (state.location === 'transmitter') return '송신기 다이얼 확인하기';
+  if (state.location === 'power') return '차단기 패널 확인하기';
+  if (state.location === 'archive') return '녹음 테이블 확인하기';
+  if (state.location === 'studio') return '필터와 벽 확인하기';
+  if (state.location === 'booth') return '마지막 방송 내용 확인하기';
+  if (state.location === 'roof') return '하윤에게 다가가기';
+  return '주변 단서와 도구 확인하기';
+}
+function puzzleMarkup(): string {
+  if (visibleHotspots(state).length > 0) return '';
+  if (state.location === 'booth') return finalPuzzleMarkup();
+  if (state.location === 'roof') return endingChoicesMarkup();
+  if (!(state.location in PUZZLE_META)) return '';
+  const location = state.location as PuzzleLocation;
+  const meta = PUZZLE_META[location];
+  const puzzle = state[meta.key];
+  if (puzzle.status === 'solved') return `<section class="puzzle-panel solved"><span>해결 완료</span><h3>${meta.title}</h3><p>${escapeHtml(puzzle.feedback)}</p></section>`;
+  const ready = puzzleReady(location);
+  const slots = Array.from({ length: meta.limit }, (_, index) => `<i class="puzzle-slot ${puzzleDraft[index] ? 'filled' : ''}">${escapeHtml(optionLabel(meta.options, puzzleDraft[index]) || '·')}</i>`).join('');
+  const options = meta.options.map(([value, label]) => `<button data-puzzle-value="${value}" ${puzzleDraft.includes(value) ? 'disabled' : ''}><b>${escapeHtml(label)}</b></button>`).join('');
+  return `<section class="puzzle-panel ${ready ? '' : 'locked'}" data-puzzle="${meta.key}"><span>현장 퍼즐</span><h3>${meta.title}</h3><p>${meta.instruction}</p>${!ready ? `<em>${puzzleRequirement(location)}</em>` : `<div class="puzzle-slots">${slots}</div><div class="puzzle-pieces">${options}</div><div class="puzzle-actions"><button data-puzzle-reset>선택 지우기</button><button data-puzzle-submit ${puzzleDraft.length !== meta.limit ? 'disabled' : ''}>순서 확인</button></div>`}${puzzle.feedback ? `<small class="puzzle-feedback">${escapeHtml(puzzle.feedback)}</small>` : ''}</section>`;
+}
+function optionLabel(options: readonly (readonly [string, string])[], value?: string): string {
+  return value ? options.find(([key]) => key === value)?.[1] ?? value : '';
+}
+function puzzleReady(location: PuzzleLocation): boolean {
+  if (location === 'transmitter') return state.inventory.includes('handheld-radio') && state.inventory.includes('frequency-card');
+  if (location === 'power') return state.frequency.status === 'solved' && state.inventory.includes('insulated-gloves') && state.inventory.includes('breaker-key');
+  if (location === 'archive') return state.breaker.status === 'solved' && state.inventory.includes('recording-reel') && state.inventory.includes('station-log');
+  return state.recordings.status === 'solved' && state.inventory.includes('flashlight') && state.inventory.includes('color-filters');
+}
+function puzzleRequirement(location: PuzzleLocation): string {
+  if (location === 'transmitter') return '휴대 라디오와 주파수 카드를 먼저 찾자.';
+  if (location === 'power') return '송신실 퍼즐을 풀고 절연 장갑과 차단기 열쇠를 찾자.';
+  if (location === 'archive') return '전력실 퍼즐을 풀고 녹음 릴과 방송국 일지를 찾자.';
+  return '보관실 퍼즐을 풀고 손전등과 색 필터를 찾자.';
+}
+function finalPuzzleMarkup(): string {
+  if (state.finalStatement.status === 'solved') return `<section class="puzzle-panel solved"><span>거짓 방송 제거 완료</span><h3>옥상 문이 열렸다</h3><p>${escapeHtml(state.finalStatement.feedback)}</p></section>`;
+  const ready = state.flashlight.status === 'solved' && state.inventory.includes('memory-tape');
+  return `<section class="puzzle-panel final-puzzle ${ready ? '' : 'locked'}"><span>다섯 번째 퍼즐</span><h3>거짓 방송 하나 빼기</h3><p>직접 확인한 사실과 맞지 않는 방송 하나를 골라 송신기에서 빼자.</p>${ready ? `<div class="statement-stack">${FINAL_STATEMENTS.map((text, index) => `<button data-statement="${index}"><span>방송 ${index + 1}</span><b>${escapeHtml(text)}</b></button>`).join('')}</div>` : '<em>숨은 통로에서 기억 테이프를 먼저 찾자.</em>'}${state.finalStatement.feedback ? `<small class="puzzle-feedback">${escapeHtml(state.finalStatement.feedback)}</small>` : ''}</section>`;
+}
+function endingChoicesMarkup(): string {
+  if (state.finalStatement.status !== 'solved') return '<section class="puzzle-panel locked"><h3>옥상 문이 잠겨 있다</h3><p>심야 부스에서 거짓 방송 하나를 먼저 빼자.</p></section>';
+  const hasKey = state.inventory.includes('roof-key');
+  if (!hasKey) return '<section class="puzzle-panel locked"><h3>하윤이 난간 끝에 있다</h3><p>사다리 옆에서 옥상 열쇠를 찾자.</p></section>';
+  return `<section class="puzzle-panel final-choice"><span>마지막 선택</span><h3>하윤과 어떻게 빠져나갈까?</h3><button data-ending="restore">하윤과 함께 송신기를 끈다</button><button data-ending="erase">방송국의 모든 기록을 지운다</button>${state.contradictions >= 1 ? '<button data-ending="human">하윤과 기억을 확인하고 함께 내려간다</button>' : ''}</section>`;
+}
+function toolBelt(): string {
+  const tools = state.inventory.filter((id): id is ItemId => Boolean(ITEM_INFO[id]));
+  return `<div class="tool-belt"><b>가방</b>${tools.length ? tools.map((id) => `<button data-inspect-item="${id}" title="${escapeHtml(ITEM_INFO[id].description)}"><i>${ITEM_INFO[id].icon}</i><span>${escapeHtml(ITEM_INFO[id].name)}</span></button>`).join('') : '<span>아직 도구가 없다.</span>'}</div>`;
+}
+function journalMarkup(): string {
+  const entries = [...state.clues].map((id) => {
+    const clue = CLUES.find((candidate) => candidate.id === id);
+    if (!clue) return '';
+    const choice = state.clueDecisions[id];
+    return `<article class="memory-card ${choice === 'delete' ? 'doubted' : ''}"><small>${escapeHtml(LOCATIONS[clue.location].title)}</small><h3>${escapeHtml(clue.title)}</h3><p>${escapeHtml(clue.text)}</p><b>${choice === 'delete' ? '방송이 만든 기억이라 의심해 지웠다' : '내 기억이라 믿고 남겼다'}</b></article>`;
+  }).join('');
+  return `<aside class="screen-overlay journal" role="dialog" aria-modal="true"><button data-journal class="overlay-close">닫기</button><span>찾은 기억 ${state.clues.size}/3</span><h2>확인한 사실</h2><p>이 사실을 퍼즐과 마지막 방송에 이용하자.</p><div>${entries || '<em>아직 확인한 기억이 없다.</em>'}</div></aside>`;
+}
+function memoryChoiceMarkup(): string {
+  if (!state.pendingClue) return '';
+  const clue = CLUES.find((candidate) => candidate.id === state.pendingClue);
+  if (!clue) return '';
+  return `<aside class="screen-overlay memory-choice" role="dialog" aria-modal="true" aria-labelledby="memory-title"><section><span>찾은 기억</span><h2 id="memory-title">${escapeHtml(clue.title)}</h2><p>${escapeHtml(clue.text)}</p><button data-memory="record">믿는다 · 기억을 남긴다</button><button data-memory="delete">의심한다 · 기억을 지운다</button><button data-cancel-memory>지금은 결정하지 않는다</button></section></aside>`;
+}
+function endingMarkup(): string {
+  if (!state.ending) return '';
+  const endingClass: Record<Ending, string> = { restore: 'ending-restore', erase: 'ending-erase', human: 'ending-human' };
+  const copy = state.ending === 'restore'
+    ? ['구조', '자정 전에 하윤을 찾았다', '함께 송신기를 끄고 산을 내려갔다.']
+    : state.ending === 'erase'
+      ? ['잃은 기억', '방송은 멈췄지만 하윤을 잊었다', '아침이 왔을 때, 왜 이곳에 왔는지도 기억나지 않았다.']
+      : ['귀환', '하윤과 서로의 기억을 확인했다', '두 사람은 손을 잡고 폭우 속 산을 내려갔다.'];
+  return `<section class="ending-screen ${endingClass[state.ending]}" style="background-image:linear-gradient(#02080ccc,#02080cee),url('${asset('art/radio/roof.webp')}')"><div><small>${copy[0]}</small><h2>${copy[1]}</h2><p>${escapeHtml(state.message)}</p><b>${copy[2]}</b><button data-reset>처음부터 다시 하기</button></div></section>`;
+}
+function introMarkup(): string {
+  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폭풍 속 해월 제7중계소</span><h2>자정 전에 동생 하윤을 찾아야 한다</h2><p>“방송을 믿지 마. 방송이 기억을 지워.” 하윤의 전화가 산속 폐방송국에서 끊겼다.</p><p>자정 전에 현장 퍼즐 다섯 개를 풀고 거짓 방송 하나를 빼야 한다.</p><ol><li>좌우 버튼으로 장소를 옮긴다.</li><li>장비를 가까이 보고 단서와 도구를 찾는다.</li><li>퍼즐을 풀고 옥상에서 하윤을 찾는다.</li></ol><button data-start>폐방송국에 들어가기</button></section></aside>`;
+}
+function render(): void {
+  const location = LOCATIONS[state.location];
+  const openLocations = availableLocations(state);
+  const placeNumber = LOCATION_ORDER.indexOf(state.location) + 1;
+  app.innerHTML = `<main class="game ${paused ? 'paused' : ''} ${detailOpen ? 'is-detail' : ''} ${state.ending ? 'has-ending' : ''}">
+    <header><div><span>산속 실종 · 23:30</span><h1>자정 <em>주파수</em></h1></div><nav><i>● 자동 저장</i><button data-journal>기억 보기 ${state.clues.size}/3</button><button data-pause>${paused ? '계속하기' : '멈추기'}</button><button data-reset>처음부터 하기</button></nav></header>
+    <section class="viewport" aria-label="${escapeHtml(location.title)}"><div class="place"><small>장소 ${String(placeNumber).padStart(2, '0')} · ${openLocations.length}/10 열림</small><h2>${escapeHtml(location.title)}</h2><p>${escapeHtml(location.subtitle)}</p></div>${sceneMarkup()}
+      ${!detailOpen ? '<button class="turn left" data-turn="-1" aria-label="이전 장소">‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="다음 장소">›<span>다음</span></button>' : ''}
+      <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
+    </section>
+    <section class="lower"><aside class="objective"><span>현재 목표</span><strong>${objective()}</strong><small>${hint()}</small><div class="progress">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div></aside>${toolBelt()}</section>
+    ${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button></aside>' : ''}${endingMarkup()}
+  </main>`;
+  bind();
+  const modalFocusTarget = state.pendingClue ? '[data-memory]' : introOpen ? '[data-start]' : journalOpen ? '[data-journal].overlay-close' : paused ? '.pause-card [data-pause]' : state.ending ? '[data-reset]' : '';
+  const focusTarget = modalFocusTarget || restoreFocusSelector;
+  if (focusTarget) document.querySelector<HTMLElement>(focusTarget)?.focus();
+  if (!modalFocusTarget) restoreFocusSelector = '';
+}
+
+function trapModalFocus(event: KeyboardEvent): boolean {
+  if (event.key !== 'Tab') return false;
+  const modal = document.querySelector<HTMLElement>('.screen-overlay, .pause-card, .ending-screen');
+  if (!modal) return false;
+  const focusable = [...modal.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')];
+  if (!focusable.length) return false;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) last.focus();
+  else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) first.focus();
+  else return false;
+  event.preventDefault();
+  return true;
+}
+function attemptCurrentPuzzle(): void {
+  let next = state;
+  if (state.location === 'transmitter') next = attemptFrequency(state, puzzleDraft);
+  else if (state.location === 'power') next = connectBreaker(state, puzzleDraft);
+  else if (state.location === 'archive') next = arrangeRecordings(state, puzzleDraft);
+  else if (state.location === 'studio') next = selectFlashlightFilter(state, puzzleDraft);
+  commit(next);
+}
+function resetGame(): void {
+  if (!confirm('현재 진행을 모두 지우고 처음부터 시작할까요?')) return;
+  localStorage.removeItem(SAVE_KEY);
+  for (const key of LEGACY_KEYS) localStorage.removeItem(key);
+  state = initialState(); detailOpen = false; journalOpen = false; paused = false; introOpen = true; puzzleDraft = []; render();
+}
+function bind(): void {
+  document.querySelectorAll<HTMLElement>('[data-turn]').forEach((button) => button.onclick = () => { detailOpen = false; puzzleDraft = []; commit(move(state, Number(button.dataset.turn) as -1 | 1)); });
+  document.querySelector<HTMLElement>('[data-open-detail]')?.addEventListener('click', () => { detailOpen = true; puzzleDraft = []; render(); });
+  document.querySelector<HTMLElement>('[data-close-detail]')?.addEventListener('click', () => { detailOpen = false; puzzleDraft = []; render(); });
+  document.querySelectorAll<HTMLElement>('[data-hotspot]').forEach((button) => button.onclick = () => { restoreFocusSelector = '[data-close-detail]'; commit(inspectHotspot(state, button.dataset.hotspot!), true); });
+  document.querySelectorAll<HTMLElement>('[data-inspect-item]').forEach((button) => button.onclick = () => commit(inspect(state, button.dataset.inspectItem as ItemId), true));
+  document.querySelectorAll<HTMLElement>('[data-puzzle-value]').forEach((button) => button.onclick = () => { const value = button.dataset.puzzleValue!; if (!puzzleDraft.includes(value)) puzzleDraft.push(value); render(); });
+  document.querySelector<HTMLElement>('[data-puzzle-reset]')?.addEventListener('click', () => { puzzleDraft = []; render(); });
+  document.querySelector<HTMLElement>('[data-puzzle-submit]')?.addEventListener('click', attemptCurrentPuzzle);
+  document.querySelectorAll<HTMLElement>('[data-statement]').forEach((button) => button.onclick = () => commit(chooseFinalStatement(state, Number(button.dataset.statement)), true));
+  document.querySelectorAll<HTMLElement>('[data-ending]').forEach((button) => button.onclick = () => commit(chooseEnding(state, button.dataset.ending as Ending)));
+  document.querySelectorAll<HTMLElement>('[data-memory]').forEach((button) => button.onclick = () => commit(resolveEditorialChoice(state, button.dataset.memory as EditorialAction, false), true));
+  document.querySelector<HTMLElement>('[data-cancel-memory]')?.addEventListener('click', () => commit(cancelPendingClue(state), true));
+  document.querySelectorAll<HTMLElement>('[data-journal]').forEach((button) => button.onclick = () => { if (!journalOpen) restoreFocusSelector = 'header [data-journal]'; journalOpen = !journalOpen; render(); });
+  document.querySelectorAll<HTMLElement>('[data-pause]').forEach((button) => button.onclick = () => { if (!paused) restoreFocusSelector = 'header [data-pause]'; paused = !paused; render(); });
+  document.querySelectorAll<HTMLElement>('[data-reset]').forEach((button) => button.onclick = resetGame);
+  document.querySelector<HTMLElement>('[data-start]')?.addEventListener('click', () => { restoreFocusSelector = '[data-open-detail]'; introOpen = false; sessionStorage.setItem('midnight-frequency-intro-seen', '1'); render(); });
+}
+window.addEventListener('keydown', (event) => {
+  if (trapModalFocus(event)) return;
+  if (state.pendingClue) { if (event.key === 'Escape') commit(cancelPendingClue(state), true); return; }
+  if (introOpen) { if (event.key === 'Escape') { restoreFocusSelector = '[data-open-detail]'; introOpen = false; sessionStorage.setItem('midnight-frequency-intro-seen', '1'); render(); } return; }
+  if (journalOpen) { if (event.key === 'Escape') { journalOpen = false; render(); } return; }
+  if (paused) { if (event.key === 'Escape') { paused = false; render(); } return; }
+  if (state.ending) return;
+  if (event.key === 'Escape' && detailOpen) { detailOpen = false; puzzleDraft = []; render(); return; }
+  if (!detailOpen && (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft')) commit(move(state, -1));
+  if (!detailOpen && (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight')) commit(move(state, 1));
+});
 render();
