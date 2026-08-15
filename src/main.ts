@@ -29,8 +29,8 @@ import {
   type ItemId,
 } from './engine';
 
-const SAVE_KEY = 'midnight-frequency-v8';
-const LEGACY_KEYS = ['midnight-frequency-v7', 'unwritten-village-submission-v6', 'unwritten-village-submission-v5'];
+const SAVE_KEY = 'midnight-frequency-v9';
+const LEGACY_KEYS = ['midnight-frequency-v8', 'midnight-frequency-v7', 'unwritten-village-submission-v6', 'unwritten-village-submission-v5'];
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 let state = load();
@@ -43,17 +43,19 @@ let puzzleDraft: string[] = [];
 let restoreFocusSelector = '';
 let revealedItem: ItemId | null = null;
 let revealTimer: number | undefined;
+let rewardBeat: { kicker: string; title: string; text: string; major: boolean } | null = null;
+let rewardTimer: number | undefined;
 
 const PUZZLE_META = {
   transmitter: {
-    key: 'frequency', title: '네 개의 주파수 다이얼', instruction: '카드의 자국과 라디오 파형을 짝지어 송신 순서를 만들자.',
-    evidence: ['굵은 파형이 첫 신호다.', '세 갈래 파형은 굵은 파형 뒤다.', '긴 신호 다음에 한 번의 호출음이 온다.'],
-    options: [['1', '1 · 호출음'], ['9', '9 · 긴 신호'], ['3', '3 · 세 갈래'], ['7', '7 · 굵은 파형']], limit: 4,
+    key: 'frequency', title: '하윤의 구조 주파수', instruction: '다이얼을 천천히 돌려 목소리가 가장 선명한 지점에 고정하자.',
+    evidence: ['카드에 80–90 MHz가 표시돼 있다.', '88 근처에서 “옥상”이라는 말이 들린다.', '신호 막대가 모두 차면 고정할 수 있다.'],
+    options: [] as readonly (readonly [string, string])[], limit: 1,
   },
   power: {
-    key: 'breaker', title: '젖은 차단기', instruction: '패널의 세 조건을 모두 만족하도록 케이블을 연결하자.',
-    evidence: ['검정 접지선은 마지막이다.', '빨강은 파랑보다 먼저다.', '노랑은 파랑 뒤, 검정 앞이다.'],
-    options: [['black', '검정 · 접지'], ['yellow', '노랑 · 조명'], ['red', '빨강 · 발전'], ['blue', '파랑 · 계기']], limit: 4,
+    key: 'breaker', title: '비상 전력 분배', instruction: '남은 전력 3칸으로 구조에 꼭 필요한 회로만 켜자.',
+    evidence: ['옥상 안테나가 신호를 보낸다.', '비상등이 탈출로를 밝힌다.', '스튜디오에서 하윤의 원본 녹음을 찾을 수 있다.'],
+    options: [['antenna', '옥상 안테나'], ['emergency', '비상등'], ['studio', '스튜디오'], ['heating', '난방'], ['sign', '외부 간판']], limit: 3,
   },
   archive: {
     key: 'recordings', title: '순서가 뒤섞인 녹음', instruction: '네 테이프 속 시각을 비교해 사건 순서대로 릴에 걸자.',
@@ -61,9 +63,9 @@ const PUZZLE_META = {
     options: [['warning', '하윤의 경고'], ['erasure', '기억 삭제 방송'], ['storm', '폭풍 경보'], ['arrival', '출입문 열림']], limit: 4,
   },
   studio: {
-    key: 'flashlight', title: '빛에 반응하는 벽', instruction: '벽에 적힌 조건대로 세 필터를 차례로 비추자.',
-    evidence: ['차가운 빛이 문양을 깨운다.', '비상등의 빨강은 마지막이다.', '남은 호박빛은 두 빛 사이다.'],
-    options: [['red', '빨강 필터'], ['blue', '청록 필터'], ['amber', '호박 필터']], limit: 3,
+    key: 'flashlight', title: '숨은 문 빛 혼합기', instruction: '세 필터의 광량을 조절해 벽의 흰 문양을 완성하자.',
+    evidence: ['청록은 2칸.', '호박은 가장 약한 1칸.', '빨강은 가장 강한 3칸.'],
+    options: [] as readonly (readonly [string, string])[], limit: 3,
   },
 } as const;
 
@@ -90,8 +92,11 @@ function load(): GameState {
 
 function save(): void { localStorage.setItem(SAVE_KEY, serialize(state)); }
 function commit(next: GameState, keepDraft = false): void {
+  const solvedBefore = puzzleSolvedFor(state);
   state = next;
   if (!keepDraft) puzzleDraft = [];
+  const solvedAfter = puzzleSolvedFor(state);
+  if (solvedAfter > solvedBefore) showReward(solvedAfter);
   save();
   render();
 }
@@ -100,25 +105,24 @@ function escapeHtml(value: string): string {
 }
 function asset(path: string): string { return `${import.meta.env.BASE_URL}${path}`; }
 function itemArt(id: ItemId): string { return asset(`art/radio/items/${id}.webp`); }
-function puzzleSolved(): number {
-  return [state.frequency, state.breaker, state.recordings, state.flashlight, state.finalStatement].filter((puzzle) => puzzle.status === 'solved').length;
-}
+function puzzleSolvedFor(value: GameState): number { return [value.frequency, value.breaker, value.recordings, value.flashlight, value.finalStatement].filter((puzzle) => puzzle.status === 'solved').length; }
+function puzzleSolved(): number { return puzzleSolvedFor(state); }
 function objective(): string {
   if (state.ending) return '하윤과 함께 방송국을 빠져나왔다.';
-  if (state.frequency.status !== 'solved') return '송신실에서 주파수 다이얼 네 개를 맞추자.';
-  if (state.breaker.status !== 'solved') return '전력실 차단기에 케이블 네 개를 연결하자.';
+  if (state.frequency.status !== 'solved') return '송신실에서 하윤의 88.0 MHz 신호를 잡자.';
+  if (state.breaker.status !== 'solved') return '전력실에서 구조용 회로 3개만 켜자.';
   if (state.recordings.status !== 'solved') return '보관실 테이프를 사건 순서대로 놓자.';
-  if (state.flashlight.status !== 'solved') return '스튜디오 벽에 색 필터를 비춰 숨은 문을 찾자.';
+  if (state.flashlight.status !== 'solved') return '세 색의 광량을 맞춰 숨은 문을 열자.';
   if (state.finalStatement.status !== 'solved') return '심야 부스에서 거짓 방송 하나를 골라 빼자.';
   return '옥상으로 올라가 하윤을 찾자.';
 }
 function hint(): string {
   const currentAttempts = state.location === 'transmitter' ? state.frequency.attempts : state.location === 'power' ? state.breaker.attempts : state.location === 'archive' ? state.recordings.attempts : state.location === 'studio' ? state.flashlight.attempts : state.location === 'booth' ? state.finalStatement.attempts : 0;
   if (state.failedActions < 2 && currentAttempts < 1) return '장소를 가까이 보고 표시된 단서와 도구를 조사하자.';
-  if (state.location === 'transmitter') return '휴대 라디오에서 소리가 바뀐 순서를 주파수 카드와 비교하자.';
-  if (state.location === 'power') return '피복이 멀쩡한 선부터 연결하고 접지선으로 끝내자.';
+  if (state.location === 'transmitter') return '88.0 MHz에 가까울수록 신호 막대와 하윤의 목소리가 강해진다.';
+  if (state.location === 'power') return '옥상 안테나, 비상등, 스튜디오만 켜면 전력 3칸을 정확히 쓴다.';
   if (state.location === 'archive') return '폭풍 경보 → 하윤 도착 → 경고 녹음 → 기억 삭제 방송 순서다.';
-  if (state.location === 'studio') return '녹음에서 들은 색은 청록, 호박, 빨강 순서다.';
+  if (state.location === 'studio') return '청록 2, 호박 1, 빨강 3. 순서가 아니라 각 빛의 세기다.';
   if (state.location === 'booth') return '직접 확인한 장소와 시간에 맞지 않는 방송을 고르자.';
   return '열린 장소를 다시 확인하고 놓친 장비를 찾자.';
 }
@@ -155,10 +159,41 @@ function puzzleMarkup(): string {
   const puzzle = state[meta.key];
   if (puzzle.status === 'solved') return `<section class="puzzle-panel solved"><span>해결 완료</span><h3>${meta.title}</h3><p>${escapeHtml(puzzle.feedback)}</p></section>`;
   const ready = puzzleReady(location);
-  const slots = Array.from({ length: meta.limit }, (_, index) => `<i class="puzzle-slot ${puzzleDraft[index] ? 'filled' : ''}">${escapeHtml(optionLabel(meta.options, puzzleDraft[index]) || '·')}</i>`).join('');
+  if (location === 'transmitter') return frequencyDialMarkup(ready);
+  if (location === 'power') return breakerPanelMarkup(ready);
+  if (location === 'studio') return lightMixerMarkup(ready);
+  const slots = Array.from({ length: meta.limit }, (_, index) => {
+    const value = puzzleDraft[index];
+    return `<button class="puzzle-slot ${value ? 'filled' : ''}" data-puzzle-remove="${index}" ${value ? `aria-label="${index + 1}번째 ${escapeHtml(optionLabel(meta.options, value))} 제거"` : 'disabled aria-label="빈 순서 칸"'}>${escapeHtml(optionLabel(meta.options, value) || '·')}</button>`;
+  }).join('');
   const options = meta.options.map(([value, label]) => `<button class="puzzle-piece piece-${value}" data-puzzle-value="${value}" ${puzzleDraft.includes(value) ? 'disabled' : ''}><i aria-hidden="true"></i><b>${escapeHtml(label)}</b></button>`).join('');
   const evidence = `<ul class="puzzle-evidence">${meta.evidence.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
-  return `<section class="puzzle-panel puzzle-${meta.key} ${ready ? '' : 'locked'} ${puzzle.attempts ? 'has-attempt' : ''}" data-puzzle="${meta.key}"><span>현장 퍼즐</span><h3>${meta.title}</h3><p>${meta.instruction}</p>${evidence}${!ready ? `<em>${puzzleRequirement(location)}</em>` : `<div class="puzzle-slots">${slots}</div><div class="puzzle-pieces">${options}</div><div class="puzzle-actions"><button data-puzzle-reset>다시 놓기</button><button data-puzzle-submit ${puzzleDraft.length !== meta.limit ? 'disabled' : ''}>장비 작동</button></div>`}${puzzle.feedback ? `<small class="puzzle-feedback">${escapeHtml(puzzle.feedback)}</small>` : ''}</section>`;
+  return `<section class="puzzle-panel puzzle-${meta.key} ${ready ? '' : 'locked'} ${puzzle.attempts ? 'has-attempt' : ''}" data-puzzle="${meta.key}"><span>현장 퍼즐</span><h3>${meta.title}</h3><p>${meta.instruction}</p>${evidence}${!ready ? `<em>${puzzleRequirement(location)}</em>` : `<div class="puzzle-slots">${slots}</div><p class="slot-help">잘못 놓은 테이프는 위 순서 칸을 눌러 뺄 수 있다.</p><div class="puzzle-pieces">${options}</div><div class="puzzle-actions"><button data-puzzle-reset>모두 지우기</button><button data-puzzle-submit ${puzzleDraft.length !== meta.limit ? 'disabled' : ''}>장비 작동</button></div>`}${puzzle.feedback ? `<small class="puzzle-feedback">${escapeHtml(puzzle.feedback)}</small>` : ''}</section>`;
+}
+function evidenceMarkup(lines: readonly string[]): string { return `<ul class="puzzle-evidence">${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`; }
+function frequencyDialMarkup(ready: boolean): string {
+  const meta = PUZZLE_META.transmitter;
+  const puzzle = state.frequency;
+  const value = Number(puzzleDraft[0] ?? 84);
+  const strength = Math.max(0, 100 - Math.abs(88 - value) * 25);
+  const heard = strength >= 95 ? '“오빠… 옥상… 들려?”' : strength >= 55 ? '“…빠… 옥… 들…”' : '치지직— 신호 없음';
+  return `<section class="puzzle-panel frequency-console ${ready ? '' : 'locked'}"><span>직접 조작 · 다이얼</span><h3>${meta.title}</h3><p>${meta.instruction}</p>${evidenceMarkup(meta.evidence)}${!ready ? `<em>${puzzleRequirement('transmitter')}</em>` : `<div class="frequency-readout"><output data-frequency-output>${value.toFixed(1)} MHz</output><div class="wave-strength" style="--signal:${strength}%">${[20,40,60,80,100].map((threshold) => `<i class="${strength >= threshold ? 'lit' : ''}"></i>`).join('')}</div><blockquote data-frequency-voice>${heard}</blockquote></div><input class="frequency-range" data-frequency-range type="range" min="80" max="92" step="1" value="${value}" aria-label="주파수 다이얼"><button class="power-submit" data-puzzle-submit ${value !== 88 ? 'disabled' : ''}>이 주파수에 고정</button>${puzzle.feedback ? `<small class="puzzle-feedback">${escapeHtml(puzzle.feedback)}</small>` : ''}`}</section>`;
+}
+function breakerPanelMarkup(ready: boolean): string {
+  const meta = PUZZLE_META.power;
+  const puzzle = state.breaker;
+  const active = new Set(puzzleDraft);
+  const remaining = Math.max(0, 3 - active.size);
+  return `<section class="puzzle-panel breaker-console ${ready ? '' : 'locked'}"><span>직접 조작 · 전력 선택</span><h3>${meta.title}</h3><p>${meta.instruction}</p>${evidenceMarkup(meta.evidence)}${!ready ? `<em>${puzzleRequirement('power')}</em>` : `<div class="power-budget"><b>남은 전력</b><strong>${'●'.repeat(remaining)}${'○'.repeat(3 - remaining)}</strong></div><div class="breaker-switches">${meta.options.map(([value,label]) => `<button data-breaker="${value}" class="${active.has(value) ? 'active' : ''}" aria-pressed="${active.has(value)}" ${!active.has(value) && active.size >= 3 ? 'disabled' : ''}><i></i><span>${label}</span></button>`).join('')}</div><button class="power-submit" data-puzzle-submit ${active.size !== 3 ? 'disabled' : ''}>비상 전력 투입</button>${puzzle.feedback ? `<small class="puzzle-feedback">${escapeHtml(puzzle.feedback)}</small>` : ''}`}</section>`;
+}
+function lightMixerMarkup(ready: boolean): string {
+  const meta = PUZZLE_META.studio;
+  const puzzle = state.flashlight;
+  const levels = [0,1,2].map((index) => Number(puzzleDraft[index] ?? 0));
+  const names = ['청록', '호박', '빨강'];
+  const colors = ['cyan', 'amber', 'red'];
+  const accuracy = levels.filter((level,index) => level === [2,1,3][index]).length;
+  return `<section class="puzzle-panel light-console ${ready ? '' : 'locked'}" style="--cyan-level:${levels[0]};--amber-level:${levels[1]};--red-level:${levels[2]}"><span>직접 조작 · 빛 혼합</span><h3>${meta.title}</h3><p>${meta.instruction}</p>${evidenceMarkup(meta.evidence)}${!ready ? `<em>${puzzleRequirement('studio')}</em>` : `<div class="light-preview"><i></i><b data-light-status>${accuracy === 3 ? '문양 완성' : `문양 조각 ${accuracy}/3`}</b></div><div class="light-sliders">${levels.map((level,index) => `<label class="light-${colors[index]}"><span>${names[index]} <output data-light-output="${index}">${level}</output></span><input data-light-index="${index}" type="range" min="0" max="3" step="1" value="${level}"></label>`).join('')}</div><button class="power-submit" data-puzzle-submit ${accuracy !== 3 ? 'disabled' : ''}>숨은 문에 빛 쏘기</button>${puzzle.feedback ? `<small class="puzzle-feedback">${escapeHtml(puzzle.feedback)}</small>` : ''}`}</section>`;
 }
 function optionLabel(options: readonly (readonly [string, string])[], value?: string): string {
   return value ? options.find(([key]) => key === value)?.[1] ?? value : '';
@@ -197,6 +232,10 @@ function collectibleRevealMarkup(): string {
   const info = ITEM_INFO[revealedItem];
   return `<aside class="collectible-reveal" role="status"><img src="${itemArt(revealedItem)}" alt=""><div><small>새 도구 획득</small><b>${escapeHtml(info.name)}</b><span>${escapeHtml(info.description)}</span></div></aside>`;
 }
+function rewardMarkup(): string {
+  if (!rewardBeat) return '';
+  return `<aside class="reward-beat ${rewardBeat.major ? 'major' : 'choice'}" role="status"><button data-dismiss-reward aria-label="보상 알림 닫기">×</button><small>${escapeHtml(rewardBeat.kicker)}</small><h2>${escapeHtml(rewardBeat.title)}</h2><p>${escapeHtml(rewardBeat.text)}</p>${rewardBeat.major ? '<div><i></i><i></i><i></i><i></i><i></i></div>' : ''}</aside>`;
+}
 function journalMarkup(): string {
   const entries = [...state.clues].map((id) => {
     const clue = CLUES.find((candidate) => candidate.id === id);
@@ -223,7 +262,7 @@ function endingMarkup(): string {
   return `<section class="ending-screen ${endingClass[state.ending]}" style="background-image:linear-gradient(#02080ccc,#02080cee),url('${asset('art/radio/roof.webp')}')"><div><small>${copy[0]}</small><h2>${copy[1]}</h2><p>${escapeHtml(state.message)}</p><b>${copy[2]}</b><button data-reset>처음부터 다시 하기</button></div></section>`;
 }
 function introMarkup(): string {
-  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폭풍 속 해월 제7중계소</span><h2>자정 전에 동생 하윤을 찾아야 한다</h2><p>“방송을 믿지 마. 방송이 기억을 지워.” 하윤의 전화가 산속 폐방송국에서 끊겼다.</p><p>자정 전에 현장 퍼즐 다섯 개를 풀고 거짓 방송 하나를 빼야 한다.</p><ol><li>좌우 버튼으로 장소를 옮긴다.</li><li>장비를 가까이 보고 단서와 도구를 찾는다.</li><li>퍼즐을 풀고 옥상에서 하윤을 찾는다.</li></ol><button data-start>폐방송국에 들어가기</button></section></aside>`;
+  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폭풍 속 해월 제7중계소</span><h2>자정까지 30분.<br>옥상의 하윤을 구하라.</h2><p class="intro-call">“오빠, 방송을 믿지 마. <b>88.0</b>을 찾아.”</p><p>전화가 끊겼다. 자정이 되면 방송은 하윤의 위치와 당신의 기억을 모두 지운다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>거짓 방송을 끄고 옥상으로 올라간다.</li></ol><button data-start>구조 신호 찾기</button></section></aside>`;
 }
 function render(): void {
   const location = LOCATIONS[state.location];
@@ -236,7 +275,7 @@ function render(): void {
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
     </section>
     <p class="field-hint"><b>현장 힌트</b>${hint()}</p>${bagOpen ? toolBelt() : ''}
-    ${collectibleRevealMarkup()}${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}
+    ${collectibleRevealMarkup()}${rewardMarkup()}${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}
   </main>`;
   bind();
   const modalFocusTarget = state.pendingClue ? '[data-memory]' : introOpen ? '[data-start]' : journalOpen ? '[data-journal].overlay-close' : paused ? '.pause-card [data-pause]' : state.ending ? '[data-reset]' : '';
@@ -265,16 +304,28 @@ function attemptCurrentPuzzle(): void {
   else if (state.location === 'power') next = connectBreaker(state, puzzleDraft);
   else if (state.location === 'archive') next = arrangeRecordings(state, puzzleDraft);
   else if (state.location === 'studio') next = selectFlashlightFilter(state, puzzleDraft);
-  commit(next);
+  const currentPuzzle = state.location === 'transmitter' ? next.frequency : state.location === 'power' ? next.breaker : state.location === 'archive' ? next.recordings : next.flashlight;
+  commit(next, currentPuzzle.status !== 'solved');
 }
 function dismissReveal(): void {
   revealedItem = null;
   if (revealTimer) window.clearTimeout(revealTimer);
   revealTimer = undefined;
 }
+function dismissReward(): void {
+  rewardBeat = null;
+  if (rewardTimer) window.clearTimeout(rewardTimer);
+  rewardTimer = undefined;
+}
+function showReward(stage: number): void {
+  const titles = ['생존 신호 포착', '비상 전력 복구', '사건 순서 복원', '숨은 통로 개방', '거짓 방송 제거'];
+  dismissReward();
+  rewardBeat = { kicker: `구조 신호 복구 ${stage}/5`, title: titles[stage - 1] ?? '경로 개방', text: state.message, major: true };
+  rewardTimer = window.setTimeout(() => { rewardBeat = null; rewardTimer = undefined; render(); }, 3300);
+}
 function resetGame(): void {
   if (!confirm('현재 진행을 모두 지우고 처음부터 시작할까요?')) return;
-  dismissReveal();
+  dismissReveal(); dismissReward();
   localStorage.removeItem(SAVE_KEY);
   for (const key of LEGACY_KEYS) localStorage.removeItem(key);
   state = initialState(); detailOpen = false; journalOpen = false; bagOpen = false; paused = false; introOpen = true; puzzleDraft = []; render();
@@ -294,11 +345,39 @@ function bind(): void {
   });
   document.querySelectorAll<HTMLElement>('[data-inspect-item]').forEach((button) => button.onclick = () => commit(inspect(state, button.dataset.inspectItem as ItemId), true));
   document.querySelectorAll<HTMLElement>('[data-puzzle-value]').forEach((button) => button.onclick = () => { const value = button.dataset.puzzleValue!; if (!puzzleDraft.includes(value)) puzzleDraft.push(value); render(); });
+  document.querySelectorAll<HTMLElement>('[data-puzzle-remove]').forEach((button) => button.onclick = () => { puzzleDraft.splice(Number(button.dataset.puzzleRemove), 1); render(); });
+  document.querySelector<HTMLInputElement>('[data-frequency-range]')?.addEventListener('input', (event) => {
+    const input = event.currentTarget as HTMLInputElement; puzzleDraft = [input.value];
+    const value = Number(input.value); const strength = Math.max(0, 100 - Math.abs(88 - value) * 25);
+    const panel = input.closest<HTMLElement>('.frequency-console');
+    const output = panel?.querySelector<HTMLOutputElement>('[data-frequency-output]'); if (output) output.value = `${value.toFixed(1)} MHz`;
+    const voice = panel?.querySelector<HTMLElement>('[data-frequency-voice]'); if (voice) voice.textContent = strength >= 95 ? '“오빠… 옥상… 들려?”' : strength >= 55 ? '“…빠… 옥… 들…”' : '치지직— 신호 없음';
+    panel?.querySelectorAll<HTMLElement>('.wave-strength i').forEach((bar,index) => bar.classList.toggle('lit', strength >= (index + 1) * 20));
+    const submit = panel?.querySelector<HTMLButtonElement>('[data-puzzle-submit]'); if (submit) submit.disabled = value !== 88;
+  });
+  document.querySelectorAll<HTMLButtonElement>('[data-breaker]').forEach((button) => button.onclick = () => {
+    const value = button.dataset.breaker!; puzzleDraft = puzzleDraft.includes(value) ? puzzleDraft.filter((entry) => entry !== value) : [...puzzleDraft, value]; render();
+  });
+  document.querySelectorAll<HTMLInputElement>('[data-light-index]').forEach((input) => input.addEventListener('input', (event) => {
+    const slider = event.currentTarget as HTMLInputElement; const index = Number(slider.dataset.lightIndex);
+    puzzleDraft = [0,1,2].map((position) => position === index ? slider.value : puzzleDraft[position] ?? '0');
+    const panel = slider.closest<HTMLElement>('.light-console'); const keys = ['cyan','amber','red'];
+    panel?.style.setProperty(`--${keys[index]}-level`, slider.value);
+    const output = panel?.querySelector<HTMLOutputElement>(`[data-light-output="${index}"]`); if (output) output.value = slider.value;
+    const accuracy = puzzleDraft.filter((value,position) => Number(value) === [2,1,3][position]).length;
+    const status = panel?.querySelector<HTMLElement>('[data-light-status]'); if (status) status.textContent = accuracy === 3 ? '문양 완성' : `문양 조각 ${accuracy}/3`;
+    const submit = panel?.querySelector<HTMLButtonElement>('[data-puzzle-submit]'); if (submit) submit.disabled = accuracy !== 3;
+  }));
   document.querySelector<HTMLElement>('[data-puzzle-reset]')?.addEventListener('click', () => { puzzleDraft = []; render(); });
   document.querySelector<HTMLElement>('[data-puzzle-submit]')?.addEventListener('click', attemptCurrentPuzzle);
   document.querySelectorAll<HTMLElement>('[data-statement]').forEach((button) => button.onclick = () => commit(chooseFinalStatement(state, Number(button.dataset.statement)), true));
   document.querySelectorAll<HTMLElement>('[data-ending]').forEach((button) => button.onclick = () => commit(chooseEnding(state, button.dataset.ending as Ending)));
-  document.querySelectorAll<HTMLElement>('[data-memory]').forEach((button) => button.onclick = () => commit(resolveEditorialChoice(state, button.dataset.memory as EditorialAction, false), true));
+  document.querySelectorAll<HTMLElement>('[data-memory]').forEach((button) => button.onclick = () => {
+    const action = button.dataset.memory as EditorialAction; const next = resolveEditorialChoice(state, action, false);
+    dismissReward(); rewardBeat = { kicker: '선택이 즉시 신호를 바꿨다', title: action === 'record' ? '기억을 믿었다' : '기억을 의심했다', text: next.message, major: false };
+    rewardTimer = window.setTimeout(() => { rewardBeat = null; rewardTimer = undefined; render(); }, 2800); commit(next, true);
+  });
+  document.querySelector<HTMLElement>('[data-dismiss-reward]')?.addEventListener('click', () => { dismissReward(); render(); });
   document.querySelector<HTMLElement>('[data-cancel-memory]')?.addEventListener('click', () => commit(cancelPendingClue(state), true));
   document.querySelectorAll<HTMLElement>('[data-journal]').forEach((button) => button.onclick = () => { dismissReveal(); if (!journalOpen) restoreFocusSelector = 'header [data-journal]'; journalOpen = !journalOpen; render(); });
   document.querySelectorAll<HTMLElement>('[data-bag]').forEach((button) => button.onclick = () => { dismissReveal(); bagOpen = !bagOpen; render(); });
