@@ -115,9 +115,9 @@ function unlockEnding(ending: Ending): void {
   unlockedEndings.add(ending);
   localStorage.setItem(GALLERY_KEY, JSON.stringify([...unlockedEndings]));
 }
-function playIllusionSound(): void {
-  const audio = new Audio(asset('audio/hayun-illusion.mp3'));
-  audio.volume = .72;
+function playJumpScareSound(): void {
+  const audio = new Audio(asset('audio/hayun-jumpscare.mp3'));
+  audio.volume = .95;
   void audio.play().catch(() => { /* The ending remains readable if autoplay is blocked. */ });
 }
 
@@ -314,7 +314,7 @@ function galleryMarkup(): string {
 }
 function jumpScareMarkup(): string {
   if (!jumpScareOpen) return '';
-  return `<aside class="jump-scare" role="dialog" aria-modal="true" aria-label="없는 목소리 공포 장면" aria-live="assertive" tabindex="-1"><img src="${itemArt('sibling-photo')}" alt="사진 속 하윤의 얼굴이 화면 앞으로 다가온다"><div aria-hidden="true"></div><p>오빠… 나는 처음부터 없었어.</p></aside>`;
+  return `<aside class="jump-scare" role="dialog" aria-modal="true" aria-label="하윤의 사진이 괴물처럼 뒤틀리는 공포 장면" aria-live="assertive" tabindex="-1"><img src="${asset('art/radio/hayun-jumpscare.webp')}" alt="하윤의 즉석사진 속 얼굴이 검은 눈과 열린 입으로 뒤틀려 화면 앞으로 다가온다"><div aria-hidden="true"></div></aside>`;
 }
 function rewardMarkup(): string {
   if (!rewardBeat) return '';
@@ -342,7 +342,7 @@ function endingMarkup(): string {
   return `<section class="ending-screen ending-${state.ending}" style="background-image:linear-gradient(#02080ccc,#02080cee),url('${art}')"><div><small>${escapeHtml(info.kicker)}</small><h2>${escapeHtml(info.title)}</h2><p>${escapeHtml(state.message)}</p><b>${escapeHtml(info.summary)}</b><div class="ending-actions"><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-reset>처음부터 다시 하기</button></div></div></section>`;
 }
 function introMarkup(): string {
-  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폭풍 속 해월 제7중계소</span><h2>자정까지 30분.<br>옥상의 하윤을 구하라.</h2><p class="intro-call">“오빠, 방송을 믿지 마. <b>88.0</b>을 찾아.”</p><p>전화가 끊겼다. 자정이 되면 방송은 하윤의 위치와 당신의 기억을 모두 지운다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>마지막 다섯 번째 퍼즐에서 거짓 방송을 판별하고 옥상으로 올라간다.</li></ol><small class="playtime-note">실시간 제한은 없습니다. 탐색 속도는 결말에 영향을 주지 않습니다.</small><small class="horror-note">공포 화면과 짧은 음성 연출이 포함됩니다.</small><div class="intro-actions"><button data-start>구조 신호 찾기</button><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button></div></section></aside>`;
+  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폭풍 속 해월 제7중계소</span><h2>자정까지 30분.<br>옥상의 하윤을 구하라.</h2><p class="intro-call">“오빠, 방송을 믿지 마. <b>88.0</b>을 찾아.”</p><p>전화가 끊겼다. 자정이 되면 방송은 하윤의 위치와 당신의 기억을 모두 지운다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>마지막 다섯 번째 퍼즐에서 거짓 방송을 판별하고 옥상으로 올라간다.</li></ol><small class="playtime-note">실시간 제한은 없습니다. 탐색 속도는 결말에 영향을 주지 않습니다.</small><small class="horror-note">공포 화면과 짧은 비명·음향 연출이 포함됩니다.</small><div class="intro-actions"><button data-start>구조 신호 찾기</button><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button></div></section></aside>`;
 }
 function render(): void {
   const location = LOCATIONS[state.location];
@@ -482,9 +482,9 @@ function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-ending]').forEach((button) => button.onclick = () => {
     const next = chooseEnding(state, button.dataset.ending as Ending);
     if (next.ending === 'illusion' && state.ending !== 'illusion') {
-      playIllusionSound(); jumpScareOpen = true;
+      playJumpScareSound(); jumpScareOpen = true;
       if (scareTimer) window.clearTimeout(scareTimer);
-      scareTimer = window.setTimeout(() => { jumpScareOpen = false; scareTimer = undefined; render(); }, 2600);
+      scareTimer = window.setTimeout(() => { jumpScareOpen = false; scareTimer = undefined; render(); }, 2850);
     }
     commit(next);
   });
