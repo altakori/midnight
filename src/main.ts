@@ -69,12 +69,21 @@ const PUZZLE_META = {
   },
 } as const;
 
-const HOTSPOT_POSITION: Record<string, [number, number]> = {
-  'entrance-radio': [59, 55], 'lobby-frequency': [82, 27], 'lobby-storm-note': [31, 43],
-  'hall-gloves': [68, 55], 'transmitter-key': [58, 72], 'power-reel': [58, 53],
-  'archive-log': [43, 58], 'studio-flashlight': [45, 73], 'studio-filters': [63, 88],
-  'studio-sibling-call': [56, 68], 'passage-photo': [36, 54], 'booth-memory': [48, 72],
-  'booth-false-script': [66, 70], 'roof-key': [30, 58],
+const HOTSPOT_LAYOUT: Record<string, { x: number; y: number; scale?: number; rotate?: number }> = {
+  'entrance-radio': { x: 56, y: 69, scale: .86, rotate: -7 },
+  'lobby-frequency': { x: 27, y: 68, scale: .78, rotate: -10 },
+  'lobby-storm-note': { x: 75, y: 46, scale: .72, rotate: 4 },
+  'hall-gloves': { x: 77, y: 69, scale: .92, rotate: 7 },
+  'transmitter-key': { x: 56, y: 78, scale: .72, rotate: 12 },
+  'power-reel': { x: 48, y: 79, scale: .9, rotate: -5 },
+  'archive-log': { x: 51, y: 73, scale: .84, rotate: -8 },
+  'studio-flashlight': { x: 28, y: 76, scale: .82, rotate: -13 },
+  'studio-filters': { x: 51, y: 84, scale: .76, rotate: 3 },
+  'studio-sibling-call': { x: 70, y: 68, scale: .7, rotate: 8 },
+  'passage-photo': { x: 72, y: 58, scale: .78, rotate: 7 },
+  'booth-memory': { x: 49, y: 76, scale: .86, rotate: -6 },
+  'booth-false-script': { x: 68, y: 62, scale: .7, rotate: 5 },
+  'roof-key': { x: 18, y: 69, scale: .78, rotate: -11 },
 };
 
 type PuzzleLocation = keyof typeof PUZZLE_META;
@@ -134,7 +143,14 @@ function sceneMarkup(): string {
   const spots = visibleHotspots(state);
   const sceneClass = detailOpen ? 'detail' : 'overview';
   const hotspotButtons = detailOpen
-    ? spots.map((spot) => { const [x, y] = HOTSPOT_POSITION[spot.id] ?? [50, 50]; return `<button class="physical-hotspot" style="--hotspot-x:${x}%;--hotspot-y:${y}%" data-hotspot="${spot.id}"><small>${spot.reward.type === 'item' ? '도구' : '기억'}</small><b>${escapeHtml(spot.label)}</b></button>`; }).join('')
+    ? spots.map((spot) => {
+      const layout = HOTSPOT_LAYOUT[spot.id] ?? { x: 50, y: 50, scale: 1, rotate: 0 };
+      const isItem = spot.reward.type === 'item';
+      const visual = spot.reward.type === 'item'
+        ? `<img src="${itemArt(spot.reward.id)}" alt="" draggable="false">`
+        : '<i class="clue-paper" aria-hidden="true"><u></u><u></u><u></u></i>';
+      return `<button class="physical-hotspot ${isItem ? 'item-prop' : 'clue-prop'}" style="--hotspot-x:${layout.x}%;--hotspot-y:${layout.y}%;--prop-scale:${layout.scale ?? 1};--prop-rotate:${layout.rotate ?? 0}deg" data-hotspot="${spot.id}" aria-label="${isItem ? '도구' : '기억 단서'} 찾기: ${escapeHtml(spot.label)}">${visual}<span>${isItem ? '도구' : '기억'}</span><b>${escapeHtml(spot.label)}</b></button>`;
+    }).join('')
     : '';
   const puzzle = detailOpen ? puzzleMarkup() : '';
   return `<div class="scene-image ${sceneClass}" style="background-image:url('${art}')"></div><div class="rain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>
