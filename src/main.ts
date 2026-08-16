@@ -1,4 +1,5 @@
 import './style.css';
+import { stationSoundscape } from './soundscape';
 import {
   CLUES,
   FINAL_STATEMENTS,
@@ -31,8 +32,22 @@ import {
 
 const SAVE_KEY = 'midnight-frequency-v10';
 const GALLERY_KEY = 'midnight-frequency-endings-v1';
+const SIDE_NAV_TUTORIAL_KEY = 'midnight-frequency-side-nav-tutorial-v1';
 const LEGACY_KEYS = ['midnight-frequency-v9', 'midnight-frequency-v8', 'midnight-frequency-v7', 'unwritten-village-submission-v6', 'unwritten-village-submission-v5'];
 const app = document.querySelector<HTMLDivElement>('#app')!;
+type StorageKind = 'local' | 'session';
+function browserStorage(kind: StorageKind): Storage | null {
+  try { return kind === 'local' ? window.localStorage : window.sessionStorage; } catch { return null; }
+}
+function storageGet(kind: StorageKind, key: string): string | null {
+  try { return browserStorage(kind)?.getItem(key) ?? null; } catch { return null; }
+}
+function storageSet(kind: StorageKind, key: string, value: string): void {
+  try { browserStorage(kind)?.setItem(key, value); } catch { /* Restricted storage must not block play. */ }
+}
+function storageRemove(kind: StorageKind, key: string): void {
+  try { browserStorage(kind)?.removeItem(key); } catch { /* Restricted storage must not block play. */ }
+}
 
 const ENDING_INFO: Record<Ending, { kicker: string; title: string; summary: string }> = {
   restore: { kicker: 'ENDING 01 · 구조', title: '자정 전에 하윤을 찾았다', summary: '믿고 남긴 기억으로 송신기를 끄고 하윤과 산을 내려갔다.' },
@@ -48,9 +63,10 @@ let journalOpen = false;
 let bagOpen = false;
 let paused = false;
 let galleryOpen = false;
+let sideNavTutorialOpen = storageGet('local', SIDE_NAV_TUTORIAL_KEY) !== 'seen';
 let selectedItem: ItemId | null = null;
 let jumpScareOpen = false;
-let introOpen = !sessionStorage.getItem('midnight-frequency-intro-seen');
+let introOpen = !storageGet('session', 'midnight-frequency-intro-seen');
 let puzzleDraft: string[] = [];
 let restoreFocusSelector = '';
 let revealedItem: ItemId | null = null;
@@ -64,6 +80,9 @@ const jumpScareAudio = new Audio(asset('audio/hayun-jumpscare.mp3'));
 jumpScareAudio.preload = 'auto';
 jumpScareAudio.volume = .95;
 jumpScareAudio.load();
+function primeSoundscape(): void { void stationSoundscape.start().catch(() => { /* Visual play remains complete if Web Audio is unavailable. */ }); }
+window.addEventListener('pointerdown', primeSoundscape, { once: true, capture: true });
+window.addEventListener('keydown', primeSoundscape, { once: true, capture: true });
 
 const PUZZLE_META = {
   transmitter: {
@@ -109,7 +128,7 @@ type PuzzleLocation = keyof typeof PUZZLE_META;
 
 function loadUnlockedEndings(): Set<Ending> {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(GALLERY_KEY) ?? '[]');
+    const parsed: unknown = JSON.parse(storageGet('local', GALLERY_KEY) ?? '[]');
     if (Array.isArray(parsed)) return new Set(parsed.filter((ending): ending is Ending => typeof ending === 'string' && ENDINGS.includes(ending as Ending)));
   } catch {
     // A malformed gallery never blocks the game.
@@ -118,7 +137,7 @@ function loadUnlockedEndings(): Set<Ending> {
 }
 function unlockEnding(ending: Ending): void {
   unlockedEndings.add(ending);
-  localStorage.setItem(GALLERY_KEY, JSON.stringify([...unlockedEndings]));
+  storageSet('local', GALLERY_KEY, JSON.stringify([...unlockedEndings]));
 }
 function playJumpScareSound(): void {
   jumpScareAudio.pause();
@@ -137,16 +156,16 @@ function leaveJumpScareFullscreen(): void {
 
 function load(): GameState {
   try {
-    const current = localStorage.getItem(SAVE_KEY);
+    const current = storageGet('local', SAVE_KEY);
     if (current) return deserialize(current);
-    for (const key of LEGACY_KEYS) localStorage.removeItem(key);
+    for (const key of LEGACY_KEYS) storageRemove('local', key);
   } catch {
     // Broken and old saves safely start over.
   }
   return initialState();
 }
 
-function save(): void { localStorage.setItem(SAVE_KEY, serialize(state)); }
+function save(): void { storageSet('local', SAVE_KEY, serialize(state)); }
 function commit(next: GameState, keepDraft = false): void {
   const solvedBefore = puzzleSolvedFor(state);
   const endingBefore = state.ending;
@@ -190,6 +209,12 @@ function hint(): string {
   return '열린 장소를 다시 확인하고 놓친 장비를 찾자.';
 }
 function signalLabel(): string { return state.tension < 35 ? '약함' : state.tension < 70 ? '불안정' : '위험'; }
+function signalMood(): 'signal-calm' | 'signal-unstable' | 'signal-danger' {
+  const decisions = Object.keys(state.clueDecisions).length;
+  if (state.tension >= 70 || decisions >= 3) return 'signal-danger';
+  if (state.tension >= 35 || decisions >= 1) return 'signal-unstable';
+  return 'signal-calm';
+}
 
 function sceneMarkup(): string {
   const location = LOCATIONS[state.location];
@@ -207,8 +232,11 @@ function sceneMarkup(): string {
     }).join('')
     : '';
   const puzzle = detailOpen ? puzzleMarkup() : '';
+  const openLocations = availableLocations(state);
+  const locationIndex = openLocations.indexOf(state.location);
+  const sideNavigation = detailOpen ? '' : `<button class="scene-nav-zone left ${sideNavTutorialOpen ? 'tutorial' : ''}" data-turn="-1" tabindex="-1" aria-hidden="true" ${locationIndex > 0 ? '' : 'disabled'}><span>화면 왼쪽 영역<br><b>이전 장소</b></span></button><button class="scene-nav-zone right ${sideNavTutorialOpen ? 'tutorial' : ''}" data-turn="1" tabindex="-1" aria-hidden="true" ${locationIndex < openLocations.length - 1 ? '' : 'disabled'}><span>화면 오른쪽 영역<br><b>다음 장소</b></span></button>${sideNavTutorialOpen ? '<p class="side-nav-guide"><b>이동 튜토리얼</b> · 화면 왼쪽 또는 오른쪽 가장자리의 어두운 영역을 아무 곳이나 누르세요.</p>' : ''}`;
   return `<div class="scene-image ${sceneClass}" style="background-image:url('${art}')"></div><div class="rain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>
-    ${detailOpen ? `<div class="scene-backdrop-exit" data-close-detail aria-hidden="true"></div><p class="backdrop-dismiss-hint scene-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p><button class="back-to-scene" data-close-detail aria-label="가까이 보기에서 장소 전체로 돌아가기"><i aria-hidden="true">←</i> 뒤로</button>${state.found.size === 0 ? '<p class="detail-guide"><b>첫 조사</b> · 장면 속 도구 그림을 누르면 가방에 들어갑니다. 빈 배경을 누르면 돌아갑니다.</p>' : ''}${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
+    ${sideNavigation}${detailOpen ? `<div class="scene-backdrop-exit" data-close-detail aria-hidden="true"></div><p class="backdrop-dismiss-hint scene-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p><button class="back-to-scene" data-close-detail aria-label="가까이 보기에서 장소 전체로 돌아가기"><i aria-hidden="true">←</i> 뒤로</button>${state.found.size === 0 ? '<p class="detail-guide"><b>첫 조사</b> · 장면 속 도구 그림을 누르면 가방에 들어갑니다. 빈 배경을 누르면 돌아갑니다.</p>' : ''}${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
 }
 function puzzleEntryLabel(): string {
   if (state.location === 'transmitter') return '송신기 다이얼 확인하기';
@@ -363,8 +391,8 @@ function render(): void {
   const openLocations = availableLocations(state);
   const placeNumber = LOCATION_ORDER.indexOf(state.location) + 1;
   const openLocationIndex = openLocations.indexOf(state.location);
-  app.innerHTML = `<main class="game ${paused ? 'paused' : ''} ${detailOpen ? 'is-detail' : ''} ${state.ending ? 'has-ending' : ''}">
-    <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="퍼즐 ${puzzleSolved()}/5 완료">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>기억 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-gallery>엔딩 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
+  app.innerHTML = `<main class="game ${signalMood()} ${paused ? 'paused' : ''} ${detailOpen ? 'is-detail' : ''} ${state.ending ? 'has-ending' : ''}">
+    <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="퍼즐 ${puzzleSolved()}/5 완료">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>기억 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-gallery>엔딩 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-audio aria-pressed="${stationSoundscape.isEnabled()}" aria-label="환경 음향 ${stationSoundscape.isEnabled() ? '켜짐' : '꺼짐'}. 눌러서 전환" title="방송국 환경 음향 켜기 또는 끄기">음향 ${stationSoundscape.isEnabled() ? '●' : '○'}</button><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
     <section class="viewport" aria-label="${escapeHtml(location.title)}"><div class="place"><small>장소 ${String(placeNumber).padStart(2, '0')} · ${openLocations.length}/10 열림</small><h2>${escapeHtml(location.title)}</h2><p>${escapeHtml(location.subtitle)}</p></div>${sceneMarkup()}
       ${!detailOpen ? `<button class="turn left" data-turn="-1" aria-label="${openLocationIndex > 0 ? '이전 장소' : '이전 장소 없음'}" ${openLocationIndex > 0 ? '' : 'disabled'}>‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="${openLocationIndex < openLocations.length - 1 ? '다음 장소' : '다음 장소 없음'}" ${openLocationIndex < openLocations.length - 1 ? '' : 'disabled'}>›<span>다음</span></button>` : ''}
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
@@ -373,6 +401,7 @@ function render(): void {
     ${collectibleRevealMarkup()}${rewardMarkup()}${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}${itemDetailMarkup()}${galleryMarkup()}${jumpScareMarkup()}
   </main>`;
   bind();
+  stationSoundscape.sync(state.location, state.tension, paused || introOpen || jumpScareOpen || Boolean(state.ending));
   const modalFocusTarget = jumpScareOpen ? '.jump-scare' : selectedItem ? '[data-close-item]' : galleryOpen ? '[data-close-gallery]' : state.pendingClue ? '[data-memory]' : introOpen ? '[data-start]' : journalOpen ? '[data-journal].overlay-close' : paused ? '.pause-card [data-pause]' : state.ending ? '[data-gallery]' : detailOpen ? '[data-close-detail]' : '';
   const focusTarget = modalFocusTarget || restoreFocusSelector;
   if (focusTarget) document.querySelector<HTMLElement>(focusTarget)?.focus();
@@ -411,6 +440,11 @@ function dismissReveal(): void {
   if (revealTimer) window.clearTimeout(revealTimer);
   revealTimer = undefined;
 }
+function dismissSideNavTutorial(): void {
+  if (!sideNavTutorialOpen) return;
+  sideNavTutorialOpen = false;
+  storageSet('local', SIDE_NAV_TUTORIAL_KEY, 'seen');
+}
 function dismissReward(): void {
   rewardBeat = null;
   if (rewardTimer) window.clearTimeout(rewardTimer);
@@ -420,13 +454,14 @@ function showReward(stage: number): void {
   const titles = ['목소리 신호 포착', '비상 전력 복구', '사건 순서 복원', '숨은 통로 개방', '거짓 방송 제거'];
   dismissReward();
   rewardBeat = { kicker: `옥상 신호 복구 ${stage}/5`, title: titles[stage - 1] ?? '경로 개방', text: state.message, major: true };
+  stationSoundscape.cue('solve');
   rewardTimer = window.setTimeout(() => { rewardBeat = null; rewardTimer = undefined; render(); }, 3300);
 }
 function resetGame(): void {
   if (!confirm('현재 진행을 모두 지우고 처음부터 시작할까요?')) return;
   dismissReveal(); dismissReward();
-  localStorage.removeItem(SAVE_KEY);
-  for (const key of LEGACY_KEYS) localStorage.removeItem(key);
+  storageRemove('local', SAVE_KEY);
+  for (const key of LEGACY_KEYS) storageRemove('local', key);
   if (scareTimer) window.clearTimeout(scareTimer);
   state = initialState(); detailOpen = false; journalOpen = false; bagOpen = false; paused = false; galleryOpen = false; selectedItem = null; jumpScareOpen = false; introOpen = true; puzzleDraft = []; render();
 }
@@ -451,12 +486,13 @@ function closeBag(): void {
   render();
 }
 function bind(): void {
-  document.querySelectorAll<HTMLElement>('[data-turn]').forEach((button) => button.onclick = () => { dismissReveal(); detailOpen = false; puzzleDraft = []; commit(move(state, Number(button.dataset.turn) as -1 | 1)); });
+  document.querySelectorAll<HTMLElement>('[data-turn]').forEach((button) => button.onclick = () => { dismissReveal(); dismissSideNavTutorial(); stationSoundscape.cue('move'); detailOpen = false; puzzleDraft = []; commit(move(state, Number(button.dataset.turn) as -1 | 1)); });
   document.querySelector<HTMLElement>('[data-open-detail]')?.addEventListener('click', () => { restoreFocusSelector = '[data-open-detail]'; detailOpen = true; puzzleDraft = []; render(); });
   document.querySelectorAll<HTMLElement>('[data-close-detail]').forEach((element) => element.addEventListener('click', closeSceneDetail));
   document.querySelectorAll<HTMLElement>('[data-hotspot]').forEach((button) => button.onclick = () => {
     const spot = visibleHotspots(state).find((candidate) => candidate.id === button.dataset.hotspot);
     if (spot?.reward.type === 'item') {
+      stationSoundscape.cue('collect');
       revealedItem = spot.reward.id;
       if (revealTimer) window.clearTimeout(revealTimer);
       revealTimer = window.setTimeout(() => { revealedItem = null; revealTimer = undefined; render(); }, 4200);
@@ -505,6 +541,7 @@ function bind(): void {
   });
   document.querySelectorAll<HTMLElement>('[data-memory]').forEach((button) => button.onclick = () => {
     const action = button.dataset.memory as EditorialAction; const next = resolveEditorialChoice(state, action, false);
+    stationSoundscape.cue('choice');
     dismissReward(); rewardBeat = { kicker: '선택이 즉시 신호를 바꿨다', title: action === 'record' ? '기억을 믿었다' : '기억을 의심했다', text: next.message, major: false };
     rewardTimer = window.setTimeout(() => { rewardBeat = null; rewardTimer = undefined; render(); }, 2800); commit(next, true);
   });
@@ -514,6 +551,7 @@ function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-bag]').forEach((button) => button.onclick = () => { dismissReveal(); if (bagOpen) closeBag(); else { bagOpen = true; restoreFocusSelector = '.bag-head [data-bag]'; render(); } });
   document.querySelector<HTMLElement>('[data-close-bag]')?.addEventListener('click', closeBag);
   document.querySelectorAll<HTMLElement>('[data-pause]').forEach((button) => button.onclick = () => { dismissReveal(); if (!paused) restoreFocusSelector = 'header [data-pause]'; paused = !paused; render(); });
+  document.querySelector<HTMLElement>('[data-audio]')?.addEventListener('click', () => { void stationSoundscape.toggle().then(render).catch(render); });
   document.querySelectorAll<HTMLElement>('[data-gallery]').forEach((button) => button.onclick = () => { if (!galleryOpen) restoreFocusSelector = '[data-gallery]'; galleryOpen = !galleryOpen; render(); });
   document.querySelector<HTMLElement>('[data-close-gallery]')?.addEventListener('click', closeGallery);
   document.querySelector<HTMLElement>('[data-close-item]')?.addEventListener('click', closeItemDetail);
@@ -522,7 +560,7 @@ function bind(): void {
     if (backdrop.dataset.backdrop === 'item') closeItemDetail(); else closeGallery();
   });
   document.querySelectorAll<HTMLElement>('[data-reset]').forEach((button) => button.onclick = resetGame);
-  document.querySelector<HTMLElement>('[data-start]')?.addEventListener('click', () => { restoreFocusSelector = '[data-open-detail]'; introOpen = false; sessionStorage.setItem('midnight-frequency-intro-seen', '1'); render(); });
+  document.querySelector<HTMLElement>('[data-start]')?.addEventListener('click', () => { primeSoundscape(); restoreFocusSelector = '[data-open-detail]'; introOpen = false; storageSet('session', 'midnight-frequency-intro-seen', '1'); render(); });
 }
 window.addEventListener('keydown', (event) => {
   if (trapModalFocus(event)) return;
@@ -530,13 +568,13 @@ window.addEventListener('keydown', (event) => {
   if (selectedItem) { if (event.key === 'Escape') closeItemDetail(); return; }
   if (galleryOpen) { if (event.key === 'Escape') closeGallery(); return; }
   if (state.pendingClue) { if (event.key === 'Escape') commit(cancelPendingClue(state), true); return; }
-  if (introOpen) { if (event.key === 'Escape') { restoreFocusSelector = '[data-open-detail]'; introOpen = false; sessionStorage.setItem('midnight-frequency-intro-seen', '1'); render(); } return; }
+  if (introOpen) { if (event.key === 'Escape') { restoreFocusSelector = '[data-open-detail]'; introOpen = false; storageSet('session', 'midnight-frequency-intro-seen', '1'); render(); } return; }
   if (journalOpen) { if (event.key === 'Escape') { journalOpen = false; render(); } return; }
   if (bagOpen) { if (event.key === 'Escape') { bagOpen = false; render(); } return; }
   if (paused) { if (event.key === 'Escape') { paused = false; render(); } return; }
   if (state.ending) return;
   if (event.key === 'Escape' && detailOpen) { closeSceneDetail(); return; }
-  if (!detailOpen && (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft')) { dismissReveal(); commit(move(state, -1)); }
-  if (!detailOpen && (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight')) { dismissReveal(); commit(move(state, 1)); }
+  if (!detailOpen && (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft')) { dismissReveal(); dismissSideNavTutorial(); stationSoundscape.cue('move'); commit(move(state, -1)); }
+  if (!detailOpen && (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight')) { dismissReveal(); dismissSideNavTutorial(); stationSoundscape.cue('move'); commit(move(state, 1)); }
 });
 render();

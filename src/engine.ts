@@ -116,12 +116,44 @@ export function deserialize(raw: string): GameState {
 function patch(state: GameState, change: Partial<GameState>): GameState { return { ...state, ...change }; }
 export function locationAvailable(state: GameState, location: Location): boolean { const index = LOCATION_ORDER.indexOf(location); if (index < 0) return false; if (location === 'archive') return state.breaker.status === 'solved'; if (location === 'studio') return state.recordings.status === 'solved'; if (location === 'passage') return state.flashlight.status === 'solved'; if (location === 'booth') return state.flashlight.status === 'solved'; if (location === 'roof') return state.finalStatement.status === 'solved'; return index <= 4 || (index === 5 && state.breaker.status === 'solved'); }
 export function availableLocations(state: GameState): Location[] { return LOCATION_ORDER.filter((location) => locationAvailable(state, location)); }
+const ARRIVAL_REACTIONS: Partial<Record<Location, { trusted: string; doubted: string; mixed: string }>> = {
+  hall: {
+    trusted: '스피커 잡음 사이로 하윤의 숨이 처음으로 섞인다.',
+    doubted: '스피커가 “하윤”을 말하려다 내 이름으로 고쳐 읽는다.',
+    mixed: '왼쪽 스피커는 하윤, 오른쪽은 내 목소리로 같은 문장을 읽는다.',
+  },
+  transmitter: {
+    trusted: '88.0 MHz 바늘이 손대지 않았는데 옥상 쪽으로 흔들린다.',
+    doubted: '주파수 눈금 아래에서 긁어 지운 내 이름이 드러난다.',
+    mixed: '같은 88.0 MHz에서 서로 다른 두 숨소리가 번갈아 잡힌다.',
+  },
+  passage: {
+    trusted: '벽 너머에서 하윤이 내가 남긴 기억을 그대로 되읽는다.',
+    doubted: '통로의 메아리가 하윤의 이름을 한 음절씩 지운다.',
+    mixed: '앞에서는 하윤, 뒤에서는 내 목소리가 동시에 옥상을 가리킨다.',
+  },
+  booth: {
+    trusted: '꺼진 마이크에 하윤의 숨이 남아 파형 하나를 만든다.',
+    doubted: '방송 원고의 “하윤”이 모두 내 이름으로 덧씌워져 있다.',
+    mixed: '두 목소리가 같은 문장을 읽지만 마지막 단어만 서로 다르다.',
+  },
+  roof: {
+    trusted: '난간 끝의 하윤이 내가 믿고 남긴 문장을 먼저 말한다.',
+    doubted: '난간 끝의 형체가 하윤의 목소리로 내 기억을 부정한다.',
+    mixed: '하윤의 입술과 스피커의 목소리가 서로 다른 기억을 말한다.',
+  },
+};
+export function arrivalMessage(state: GameState, location: Location): string {
+  const reaction = ARRIVAL_REACTIONS[location];
+  if (!reaction || !Object.keys(state.clueDecisions).length) return LOCATIONS[location].subtitle;
+  return state.editorialScore > 0 ? reaction.trusted : state.editorialScore < 0 ? reaction.doubted : reaction.mixed;
+}
 export function move(state: GameState, direction: -1 | 1): GameState {
   const available = availableLocations(state);
   const index = available.indexOf(state.location);
   const location = available[index + direction];
   if (!location) return state;
-  return patch(state, { location, tension: Math.min(100, state.tension + 2), message: LOCATIONS[location].subtitle });
+  return patch(state, { location, tension: Math.min(100, state.tension + 2), message: arrivalMessage(state, location) });
 }
 export function fail(state: GameState, message: string): GameState { return patch(state, { failedActions: state.failedActions + 1, tension: Math.min(100, state.tension + 2), message }); }
 export function visibleHotspots(state: GameState): Hotspot[] { return HOTSPOTS.filter((h) => h.location === state.location && !state.found.has(`hotspot:${h.id}`) && !(h.reward.type === 'clue' && state.clues.has(h.reward.id))); }

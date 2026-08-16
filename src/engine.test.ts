@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ITEM_INFO, arrangeRecordings, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, endingAvailability, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
+import { ITEM_INFO, arrangeRecordings, arrivalMessage, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, endingAvailability, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
 
 function go(state: GameState, target: Location): GameState {
   for (let i = 0; i < 30 && state.location !== target; i++) state = move(state, 1);
@@ -46,6 +46,14 @@ describe('storm mountain radio station engine', () => {
     s = go(s, 'power');
     expect(move(s, 1)).toBe(s);
     expect(s.location).toBe('power');
+  });
+
+  it('changes revisited station reactions according to trusted and doubted memories', () => {
+    const base = initialState();
+    expect(arrivalMessage(base, 'hall')).toContain('최근 기억');
+    expect(arrivalMessage({ ...base, clueDecisions: { 'storm-note': 'record' }, editorialScore: 1 }, 'hall')).toContain('하윤의 숨');
+    expect(arrivalMessage({ ...base, clueDecisions: { 'storm-note': 'delete' }, editorialScore: -1 }, 'hall')).toContain('내 이름');
+    expect(arrivalMessage({ ...base, clueDecisions: { 'storm-note': 'record', 'sibling-call': 'delete' }, editorialScore: 0 }, 'hall')).toContain('왼쪽 스피커');
   });
 
   it('adds distinct environmental aftermath beats to physical item pickups', () => {
