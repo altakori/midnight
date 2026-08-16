@@ -283,7 +283,7 @@ function toolBelt(): string {
 function collectibleRevealMarkup(): string {
   if (!revealedItem) return '';
   const info = ITEM_INFO[revealedItem];
-  return `<aside class="collectible-reveal" role="status"><img src="${itemArt(revealedItem)}" alt=""><div><small>새 도구 획득</small><b>${escapeHtml(info.name)}</b><span>${escapeHtml(info.description)}</span></div></aside>`;
+  return `<aside class="collectible-reveal" role="status"><img src="${itemArt(revealedItem)}" alt=""><div><small>새 도구 획득</small><b>${escapeHtml(info.name)}</b><span>${escapeHtml(info.description)}</span><em>${escapeHtml(info.pickupReaction)}</em></div></aside>`;
 }
 function itemDetailMarkup(): string {
   if (!selectedItem) return '';
@@ -426,7 +426,7 @@ function bind(): void {
     if (spot?.reward.type === 'item') {
       revealedItem = spot.reward.id;
       if (revealTimer) window.clearTimeout(revealTimer);
-      revealTimer = window.setTimeout(() => { revealedItem = null; revealTimer = undefined; render(); }, 2600);
+      revealTimer = window.setTimeout(() => { revealedItem = null; revealTimer = undefined; render(); }, 4200);
     }
     restoreFocusSelector = '[data-close-detail]'; commit(inspectHotspot(state, button.dataset.hotspot!), true);
   });

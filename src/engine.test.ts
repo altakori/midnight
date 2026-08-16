@@ -48,6 +48,32 @@ describe('storm mountain radio station engine', () => {
     expect(s.location).toBe('power');
   });
 
+  it('adds distinct environmental aftermath beats to physical item pickups', () => {
+    let s = initialState();
+    const reactions: string[] = [];
+
+    s = take(s, 'entrance-radio');
+    reactions.push(s.message);
+    expect(s.inventory).toEqual(['handheld-radio']);
+    expect(s.message).toContain('입구 스피커');
+    expect(visibleHotspots(s).some((hotspot) => hotspot.id === 'entrance-radio')).toBe(false);
+
+    s = go(s, 'lobby'); s = take(s, 'lobby-frequency');
+    reactions.push(s.message);
+    expect(s.inventory).toHaveLength(2);
+    expect(s.message).toContain('초침');
+
+    s = go(s, 'hall'); s = take(s, 'hall-gloves');
+    reactions.push(s.message);
+    expect(s.inventory).toHaveLength(3);
+    expect(s.message).toContain('긁은 세 줄');
+    expect(new Set(reactions).size).toBe(3);
+
+    const allReactions = Object.values(ITEM_INFO).map((item) => item.pickupReaction);
+    expect(allReactions.every((reaction) => reaction.length > 0)).toBe(true);
+    expect(new Set(allReactions).size).toBe(allReactions.length);
+  });
+
   it('requires wrong-answer attempts and does not solve by collecting tools', () => {
     let s = initialState();
     s = take(s, 'entrance-radio'); s = go(s, 'lobby'); s = take(s, 'lobby-frequency'); s = go(s, 'hall'); s = take(s, 'hall-gloves'); s = go(s, 'transmitter'); s = take(s, 'transmitter-key');
