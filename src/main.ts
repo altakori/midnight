@@ -58,7 +58,12 @@ let revealTimer: number | undefined;
 let rewardBeat: { kicker: string; title: string; text: string; major: boolean } | null = null;
 let rewardTimer: number | undefined;
 let scareTimer: number | undefined;
+let jumpScareRequestedFullscreen = false;
 const unlockedEndings = loadUnlockedEndings();
+const jumpScareAudio = new Audio(asset('audio/hayun-jumpscare.mp3'));
+jumpScareAudio.preload = 'auto';
+jumpScareAudio.volume = .95;
+jumpScareAudio.load();
 
 const PUZZLE_META = {
   transmitter: {
@@ -116,9 +121,18 @@ function unlockEnding(ending: Ending): void {
   localStorage.setItem(GALLERY_KEY, JSON.stringify([...unlockedEndings]));
 }
 function playJumpScareSound(): void {
-  const audio = new Audio(asset('audio/hayun-jumpscare.mp3'));
-  audio.volume = .95;
-  void audio.play().catch(() => { /* The ending remains readable if autoplay is blocked. */ });
+  jumpScareAudio.pause();
+  jumpScareAudio.currentTime = .085;
+  void jumpScareAudio.play().catch(() => { /* The ending remains readable if playback is blocked. */ });
+}
+function enterJumpScareFullscreen(): void {
+  if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+  jumpScareRequestedFullscreen = true;
+  void document.documentElement.requestFullscreen().catch(() => { jumpScareRequestedFullscreen = false; });
+}
+function leaveJumpScareFullscreen(): void {
+  if (jumpScareRequestedFullscreen && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  jumpScareRequestedFullscreen = false;
 }
 
 function load(): GameState {
@@ -194,7 +208,7 @@ function sceneMarkup(): string {
     : '';
   const puzzle = detailOpen ? puzzleMarkup() : '';
   return `<div class="scene-image ${sceneClass}" style="background-image:url('${art}')"></div><div class="rain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>
-    ${detailOpen ? `<div class="scene-backdrop-exit" data-close-detail aria-hidden="true"></div><button class="back-to-scene" data-close-detail aria-label="가까이 보기에서 장소 전체로 돌아가기"><i aria-hidden="true">←</i> 뒤로</button>${state.found.size === 0 ? '<p class="detail-guide"><b>첫 조사</b> · 장면 속 도구 그림을 누르면 가방에 들어갑니다. 빈 배경을 누르면 돌아갑니다.</p>' : ''}${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
+    ${detailOpen ? `<div class="scene-backdrop-exit" data-close-detail aria-hidden="true"></div><p class="backdrop-dismiss-hint scene-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p><button class="back-to-scene" data-close-detail aria-label="가까이 보기에서 장소 전체로 돌아가기"><i aria-hidden="true">←</i> 뒤로</button>${state.found.size === 0 ? '<p class="detail-guide"><b>첫 조사</b> · 장면 속 도구 그림을 누르면 가방에 들어갑니다. 빈 배경을 누르면 돌아갑니다.</p>' : ''}${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
 }
 function puzzleEntryLabel(): string {
   if (state.location === 'transmitter') return '송신기 다이얼 확인하기';
@@ -300,7 +314,7 @@ function collectibleRevealMarkup(): string {
 function itemDetailMarkup(): string {
   if (!selectedItem) return '';
   const info = ITEM_INFO[selectedItem];
-  return `<aside class="screen-overlay item-detail" role="dialog" aria-modal="true" aria-labelledby="item-detail-title" data-backdrop="item"><section><button class="modal-back" data-close-item aria-label="아이템 상세 닫고 가방으로 돌아가기">← 가방으로</button><div class="item-art-stage"><img src="${itemArt(selectedItem)}" alt="${escapeHtml(info.name)} 확대 그림"></div><div class="item-copy"><small>현장 조사 기록</small><h2 id="item-detail-title">${escapeHtml(info.name)}</h2><p class="item-summary">${escapeHtml(info.description)}</p><hr><p>${escapeHtml(info.detail)}</p></div></section></aside>`;
+  return `<aside class="screen-overlay item-detail" role="dialog" aria-modal="true" aria-labelledby="item-detail-title" data-backdrop="item"><p class="backdrop-dismiss-hint modal-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p><section><button class="modal-back" data-close-item aria-label="아이템 상세 닫고 가방으로 돌아가기">← 가방으로</button><div class="item-art-stage"><img src="${itemArt(selectedItem)}" alt="${escapeHtml(info.name)} 확대 그림"></div><div class="item-copy"><small>현장 조사 기록</small><h2 id="item-detail-title">${escapeHtml(info.name)}</h2><p class="item-summary">${escapeHtml(info.description)}</p><hr><p>${escapeHtml(info.detail)}</p></div></section></aside>`;
 }
 function galleryMarkup(): string {
   if (!galleryOpen) return '';
@@ -310,7 +324,7 @@ function galleryMarkup(): string {
     const art = ending === 'illusion' ? itemArt('sibling-photo') : asset('art/radio/roof.webp');
     return `<article class="ending-card ${unlocked ? 'unlocked' : 'locked'} ${ending === 'illusion' ? 'haunted' : ''}" style="--ending-art:url('${art}')"><div aria-hidden="true"></div><small>${unlocked ? escapeHtml(info.kicker) : 'ENDING ?? · 잠김'}</small><h3>${unlocked ? escapeHtml(info.title) : '아직 확인하지 않은 결말'}</h3><p>${unlocked ? escapeHtml(info.summary) : '다른 방식으로 기억을 판단하고 옥상에 도달하세요.'}</p></article>`;
   }).join('');
-  return `<aside class="screen-overlay ending-gallery" role="dialog" aria-modal="true" aria-labelledby="gallery-title" data-backdrop="gallery"><section><button class="modal-back" data-close-gallery>← 메인으로</button><span>영구 기록 · ${unlockedEndings.size}/${ENDINGS.length}</span><h2 id="gallery-title">엔딩 갤러리</h2><p>진행을 초기화해도 확인한 결말은 이곳에 남습니다.</p><div class="ending-grid">${cards}</div></section></aside>`;
+  return `<aside class="screen-overlay ending-gallery" role="dialog" aria-modal="true" aria-labelledby="gallery-title" data-backdrop="gallery"><p class="backdrop-dismiss-hint modal-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p><section><button class="modal-back" data-close-gallery>← 메인으로</button><span>영구 기록 · ${unlockedEndings.size}/${ENDINGS.length}</span><h2 id="gallery-title">엔딩 갤러리</h2><p>진행을 초기화해도 확인한 결말은 이곳에 남습니다.</p><div class="ending-grid">${cards}</div></section></aside>`;
 }
 function jumpScareMarkup(): string {
   if (!jumpScareOpen) return '';
@@ -318,7 +332,7 @@ function jumpScareMarkup(): string {
 }
 function rewardMarkup(): string {
   if (!rewardBeat) return '';
-  return `<aside class="reward-beat ${rewardBeat.major ? 'major' : 'choice'}" role="status"><button data-dismiss-reward aria-label="보상 알림 닫기">×</button><small>${escapeHtml(rewardBeat.kicker)}</small><h2>${escapeHtml(rewardBeat.title)}</h2><p>${escapeHtml(rewardBeat.text)}</p>${rewardBeat.major ? '<div><i></i><i></i><i></i><i></i><i></i></div>' : ''}</aside>`;
+  return `<div class="reward-backdrop" data-dismiss-reward aria-hidden="true"></div><p class="backdrop-dismiss-hint reward-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p><aside class="reward-beat ${rewardBeat.major ? 'major' : 'choice'}" role="status"><button data-dismiss-reward aria-label="보상 알림 닫기">×</button><small>${escapeHtml(rewardBeat.kicker)}</small><h2>${escapeHtml(rewardBeat.title)}</h2><p>${escapeHtml(rewardBeat.text)}</p>${rewardBeat.major ? '<div><i></i><i></i><i></i><i></i><i></i></div>' : ''}</aside>`;
 }
 function journalMarkup(): string {
   const entries = [...state.clues].map((id) => {
@@ -355,7 +369,7 @@ function render(): void {
       ${!detailOpen ? `<button class="turn left" data-turn="-1" aria-label="${openLocationIndex > 0 ? '이전 장소' : '이전 장소 없음'}" ${openLocationIndex > 0 ? '' : 'disabled'}>‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="${openLocationIndex < openLocations.length - 1 ? '다음 장소' : '다음 장소 없음'}" ${openLocationIndex < openLocations.length - 1 ? '' : 'disabled'}>›<span>다음</span></button>` : ''}
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
     </section>
-    <p class="field-hint"><b>현장 힌트</b>${hint()}</p>${bagOpen ? `<div class="bag-backdrop" data-close-bag aria-hidden="true"></div>${toolBelt()}` : ''}
+    <p class="field-hint"><b>현장 힌트</b>${hint()}</p>${bagOpen ? `<div class="bag-backdrop" data-close-bag aria-hidden="true"></div><p class="backdrop-dismiss-hint bag-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p>${toolBelt()}` : ''}
     ${collectibleRevealMarkup()}${rewardMarkup()}${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}${itemDetailMarkup()}${galleryMarkup()}${jumpScareMarkup()}
   </main>`;
   bind();
@@ -422,6 +436,7 @@ function closeJumpScare(): void {
   jumpScareOpen = false;
   if (scareTimer) window.clearTimeout(scareTimer);
   scareTimer = undefined;
+  leaveJumpScareFullscreen();
   render();
 }
 function closeSceneDetail(): void {
@@ -482,9 +497,9 @@ function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-ending]').forEach((button) => button.onclick = () => {
     const next = chooseEnding(state, button.dataset.ending as Ending);
     if (next.ending === 'illusion' && state.ending !== 'illusion') {
-      playJumpScareSound(); jumpScareOpen = true;
+      enterJumpScareFullscreen(); playJumpScareSound(); jumpScareOpen = true;
       if (scareTimer) window.clearTimeout(scareTimer);
-      scareTimer = window.setTimeout(() => { jumpScareOpen = false; scareTimer = undefined; render(); }, 2850);
+      scareTimer = window.setTimeout(closeJumpScare, 2850);
     }
     commit(next);
   });
@@ -493,7 +508,7 @@ function bind(): void {
     dismissReward(); rewardBeat = { kicker: '선택이 즉시 신호를 바꿨다', title: action === 'record' ? '기억을 믿었다' : '기억을 의심했다', text: next.message, major: false };
     rewardTimer = window.setTimeout(() => { rewardBeat = null; rewardTimer = undefined; render(); }, 2800); commit(next, true);
   });
-  document.querySelector<HTMLElement>('[data-dismiss-reward]')?.addEventListener('click', () => { dismissReward(); render(); });
+  document.querySelectorAll<HTMLElement>('[data-dismiss-reward]').forEach((element) => element.addEventListener('click', () => { dismissReward(); render(); }));
   document.querySelector<HTMLElement>('[data-cancel-memory]')?.addEventListener('click', () => commit(cancelPendingClue(state), true));
   document.querySelectorAll<HTMLElement>('[data-journal]').forEach((button) => button.onclick = () => { dismissReveal(); if (!journalOpen) restoreFocusSelector = 'header [data-journal]'; journalOpen = !journalOpen; render(); });
   document.querySelectorAll<HTMLElement>('[data-bag]').forEach((button) => button.onclick = () => { dismissReveal(); if (bagOpen) closeBag(); else { bagOpen = true; restoreFocusSelector = '.bag-head [data-bag]'; render(); } });
