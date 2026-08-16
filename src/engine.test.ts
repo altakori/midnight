@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { arrangeRecordings, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, endingAvailability, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
+import { ITEM_INFO, arrangeRecordings, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, endingAvailability, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
 
 function go(state: GameState, target: Location): GameState {
   for (let i = 0; i < 30 && state.location !== target; i++) state = move(state, 1);
@@ -45,16 +45,16 @@ describe('storm mountain radio station engine', () => {
     expect(s.frequency.status).toBe('active'); expect(s.frequency.attempts).toBe(1); expect(s.message).toContain('88.0 MHz'); expect(s.failedActions).toBe(1);
     expect(availableLocations(s)).not.toContain('archive');
     s = attemptFrequency(s, ['88']);
-    expect(s.frequency.status).toBe('solved'); expect(s.archiveLit).toBe(true);
+    expect(s.frequency.status).toBe('solved');
   });
 
   it('solves the three-circuit power budget only after frequency', () => {
     let s = initialState();
     s = take(s, 'entrance-radio'); s = go(s, 'lobby'); s = take(s, 'lobby-frequency'); s = go(s, 'hall'); s = take(s, 'hall-gloves'); s = go(s, 'transmitter'); s = take(s, 'transmitter-key'); s = attemptFrequency(s, ['88']); s = go(s, 'power');
     s = connectBreaker(s, ['black', 'yellow', 'blue', 'red']);
-    expect(s.breaker.status).toBe('active'); expect(s.unlocked).toBe(false);
+    expect(s.breaker.status).toBe('active'); expect(locationAvailable(s, 'archive')).toBe(false);
     s = connectBreaker(s, ['antenna', 'emergency', 'studio']);
-    expect(s.breaker.status).toBe('solved'); expect(s.unlocked).toBe(true); expect(locationAvailable(s, 'archive')).toBe(true);
+    expect(s.breaker.status).toBe('solved'); expect(locationAvailable(s, 'archive')).toBe(true);
   });
 
   it('solves chronology, then colored flashlight selection in unlock order', () => {
@@ -80,7 +80,7 @@ describe('storm mountain radio station engine', () => {
     const wrong = chooseFinalStatement(inBooth, 2);
     expect(wrong.finalStatement.status).toBe('active'); expect(wrong.message).toContain('뒷받침');
     const right = chooseFinalStatement(wrong, 0);
-    expect(right.finalStatement.status).toBe('solved'); expect(right.rememberedSibling).toBe(true);
+    expect(right.finalStatement.status).toBe('solved');
     expect(chooseFinalStatement(right, 2)).toEqual(right);
   });
 
@@ -90,7 +90,7 @@ describe('storm mountain radio station engine', () => {
     const restore = chooseEnding(restoreReady, 'restore');
     expect(restore.ending).toBe('restore');
     const eraseReady = fullInvestigation(['delete', 'delete', 'delete']);
-    expect(endingAvailability(eraseReady)).toMatchObject({ restore: false, erase: true, human: false });
+    expect(endingAvailability(eraseReady)).toMatchObject({ restore: false, erase: true, human: false, illusion: true });
     const erased = chooseEnding(eraseReady, 'erase');
     expect(erased.ending).toBe('erase');
     expect(restore.message).not.toBe(erased.message);
@@ -102,6 +102,66 @@ describe('storm mountain radio station engine', () => {
     const human = chooseEnding(ready, 'human');
     expect(human.ending).toBe('human');
     expect(human.message).toContain('동생');
+  });
+
+  it('reveals the broadcast-created Hayun ending only after doubting all three memories', () => {
+    const allDoubted = fullInvestigation(['delete', 'delete', 'delete']);
+    expect(endingAvailability(allDoubted).illusion).toBe(true);
+    const illusion = chooseEnding(allDoubted, 'illusion');
+    expect(illusion.ending).toBe('illusion');
+    expect(illusion.message).toContain('빈자리');
+    const oneTrusted = fullInvestigation(['delete', 'delete', 'record']);
+    expect(endingAvailability(oneTrusted).illusion).toBe(false);
+    expect(chooseEnding(oneTrusted, 'illusion').ending).toBeUndefined();
+  });
+
+  it('gives every collectible a substantial investigation record', () => {
+    const entries = Object.values(ITEM_INFO);
+    expect(entries).toHaveLength(11);
+    for (const entry of entries) {
+      expect(entry.description.length).toBeGreaterThan(25);
+      expect(entry.detail.length).toBeGreaterThan(90);
+    }
+    expect(ITEM_INFO['sibling-photo'].detail).toContain('하윤');
+    expect(ITEM_INFO['memory-tape'].detail).toContain('파형');
+    expect(ITEM_INFO['station-log'].detail).toContain('출입');
+  });
+
+  it('keeps all eleven collectibles connected to a required puzzle or ending gate', () => {
+    let frequencyReady = initialState(); frequencyReady = take(frequencyReady, 'entrance-radio'); frequencyReady = go(frequencyReady, 'lobby'); frequencyReady = take(frequencyReady, 'lobby-frequency');
+    for (const missing of ['handheld-radio', 'frequency-card']) {
+      const blocked = attemptFrequency({ ...frequencyReady, inventory: frequencyReady.inventory.filter((id) => id !== missing) }, ['88']);
+      expect(blocked.frequency.status).toBe('locked');
+    }
+
+    let breakerReady = go(frequencyReady, 'hall'); breakerReady = take(breakerReady, 'hall-gloves'); breakerReady = go(breakerReady, 'transmitter'); breakerReady = take(breakerReady, 'transmitter-key'); breakerReady = attemptFrequency(breakerReady, ['88']); breakerReady = go(breakerReady, 'power');
+    for (const missing of ['insulated-gloves', 'breaker-key']) {
+      const blocked = connectBreaker({ ...breakerReady, inventory: breakerReady.inventory.filter((id) => id !== missing) }, ['antenna', 'emergency', 'studio']);
+      expect(blocked.breaker.status).toBe('locked');
+    }
+
+    let recordingReady = take(breakerReady, 'power-reel'); recordingReady = connectBreaker(recordingReady, ['antenna', 'emergency', 'studio']); recordingReady = go(recordingReady, 'archive'); recordingReady = take(recordingReady, 'archive-log');
+    for (const missing of ['recording-reel', 'station-log']) {
+      const blocked = arrangeRecordings({ ...recordingReady, inventory: recordingReady.inventory.filter((id) => id !== missing) }, ['storm', 'arrival', 'warning', 'erasure']);
+      expect(blocked.recordings.status).toBe('locked');
+    }
+
+    let lightReady = arrangeRecordings(recordingReady, ['storm', 'arrival', 'warning', 'erasure']); lightReady = go(lightReady, 'studio'); lightReady = take(lightReady, 'studio-flashlight'); lightReady = take(lightReady, 'studio-filters');
+    for (const missing of ['flashlight', 'color-filters']) {
+      const blocked = selectFlashlightFilter({ ...lightReady, inventory: lightReady.inventory.filter((id) => id !== missing) }, ['2', '1', '3']);
+      expect(blocked.flashlight.status).toBe('locked');
+    }
+
+    const finalReady = fullInvestigation(['record', 'record', 'record'], false);
+    for (const missing of ['sibling-photo', 'memory-tape']) {
+      const blocked = chooseFinalStatement({ ...finalReady, inventory: finalReady.inventory.filter((id) => id !== missing) }, 0);
+      expect(blocked.finalStatement.status).toBe('locked');
+    }
+    expect(chooseFinalStatement({ ...finalReady, clues: new Set([...finalReady.clues].filter((id) => id !== 'false-script')) }, 0).finalStatement.status).toBe('locked');
+
+    const endingReady = fullInvestigation();
+    const noRoofKey = { ...endingReady, inventory: endingReady.inventory.filter((id) => id !== 'roof-key') };
+    expect(chooseEnding(noRoofKey, 'restore').ending).toBeUndefined();
   });
 
   it('makes each memory choice change the signal state immediately', () => {
@@ -116,10 +176,11 @@ describe('storm mountain radio station engine', () => {
   it('round-trips sets and puzzle progress, while safely resetting incompatible or malformed saves', () => {
     const progress = fullInvestigation();
     const roundTrip = deserialize(serialize(progress));
-    expect(roundTrip.version).toBe(9); expect(roundTrip.frequency.status).toBe('solved'); expect(roundTrip.finalStatement.status).toBe('solved'); expect(roundTrip.inventory).toEqual(progress.inventory);
-    const legacy = deserialize(JSON.stringify({ version: 8, location: 'roof', inventory: ['roof-key'], ending: 'erase' }));
-    expect(legacy.version).toBe(9); expect(legacy.location).toBe('entrance'); expect(legacy.ending).toBeUndefined(); expect(legacy.inventory).toEqual([]);
+    expect(roundTrip.version).toBe(10); expect(roundTrip.frequency.status).toBe('solved'); expect(roundTrip.finalStatement.status).toBe('solved'); expect(roundTrip.inventory).toEqual(progress.inventory);
+    const legacy = deserialize(JSON.stringify({ version: 9, location: 'roof', inventory: ['roof-key'], ending: 'erase' }));
+    expect(legacy.version).toBe(10); expect(legacy.location).toBe('entrance'); expect(legacy.ending).toBeUndefined(); expect(legacy.inventory).toEqual([]);
     const saved = JSON.parse(serialize(progress));
+    for (const removedKey of ['unlocked', 'archiveLit', 'shadowSeen', 'rememberedSibling']) expect(saved).not.toHaveProperty(removedKey);
     for (const mutation of [
       { ...saved, location: 'missing-room' },
       { ...saved, ending: 'restore\" onclick=\"alert(1)' },
