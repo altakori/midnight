@@ -116,7 +116,13 @@ export function deserialize(raw: string): GameState {
 function patch(state: GameState, change: Partial<GameState>): GameState { return { ...state, ...change }; }
 export function locationAvailable(state: GameState, location: Location): boolean { const index = LOCATION_ORDER.indexOf(location); if (index < 0) return false; if (location === 'archive') return state.breaker.status === 'solved'; if (location === 'studio') return state.recordings.status === 'solved'; if (location === 'passage') return state.flashlight.status === 'solved'; if (location === 'booth') return state.flashlight.status === 'solved'; if (location === 'roof') return state.finalStatement.status === 'solved'; return index <= 4 || (index === 5 && state.breaker.status === 'solved'); }
 export function availableLocations(state: GameState): Location[] { return LOCATION_ORDER.filter((location) => locationAvailable(state, location)); }
-export function move(state: GameState, direction: -1 | 1): GameState { const available = availableLocations(state); const index = Math.max(0, available.indexOf(state.location)); const location = available[(index + direction + available.length) % available.length] ?? available[0]; return patch(state, { location, tension: Math.min(100, state.tension + 2), message: LOCATIONS[location].subtitle }); }
+export function move(state: GameState, direction: -1 | 1): GameState {
+  const available = availableLocations(state);
+  const index = available.indexOf(state.location);
+  const location = available[index + direction];
+  if (!location) return state;
+  return patch(state, { location, tension: Math.min(100, state.tension + 2), message: LOCATIONS[location].subtitle });
+}
 export function fail(state: GameState, message: string): GameState { return patch(state, { failedActions: state.failedActions + 1, tension: Math.min(100, state.tension + 2), message }); }
 export function visibleHotspots(state: GameState): Hotspot[] { return HOTSPOTS.filter((h) => h.location === state.location && !state.found.has(`hotspot:${h.id}`) && !(h.reward.type === 'clue' && state.clues.has(h.reward.id))); }
 export type EditorialActionState = { stage: 'normal' | 'warning' | 'cost' | 'deleted'; disabled: boolean; opposite: boolean; costsInk: boolean; canRestore: boolean };

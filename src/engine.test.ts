@@ -38,6 +38,16 @@ describe('storm mountain radio station engine', () => {
     expect(locationAvailable(s, 'archive')).toBe(false);
   });
 
+  it('keeps station movement linear instead of wrapping between distant ends', () => {
+    let s = initialState();
+    expect(move(s, -1)).toBe(s);
+    s = move(s, 1);
+    expect(s.location).toBe('lobby');
+    s = go(s, 'power');
+    expect(move(s, 1)).toBe(s);
+    expect(s.location).toBe('power');
+  });
+
   it('requires wrong-answer attempts and does not solve by collecting tools', () => {
     let s = initialState();
     s = take(s, 'entrance-radio'); s = go(s, 'lobby'); s = take(s, 'lobby-frequency'); s = go(s, 'hall'); s = take(s, 'hall-gloves'); s = go(s, 'transmitter'); s = take(s, 'transmitter-key');

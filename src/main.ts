@@ -336,10 +336,11 @@ function render(): void {
   const location = LOCATIONS[state.location];
   const openLocations = availableLocations(state);
   const placeNumber = LOCATION_ORDER.indexOf(state.location) + 1;
+  const openLocationIndex = openLocations.indexOf(state.location);
   app.innerHTML = `<main class="game ${paused ? 'paused' : ''} ${detailOpen ? 'is-detail' : ''} ${state.ending ? 'has-ending' : ''}">
     <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="퍼즐 ${puzzleSolved()}/5 완료">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>기억 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-gallery>엔딩 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
     <section class="viewport" aria-label="${escapeHtml(location.title)}"><div class="place"><small>장소 ${String(placeNumber).padStart(2, '0')} · ${openLocations.length}/10 열림</small><h2>${escapeHtml(location.title)}</h2><p>${escapeHtml(location.subtitle)}</p></div>${sceneMarkup()}
-      ${!detailOpen ? '<button class="turn left" data-turn="-1" aria-label="이전 장소">‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="다음 장소">›<span>다음</span></button>' : ''}
+      ${!detailOpen ? `<button class="turn left" data-turn="-1" aria-label="${openLocationIndex > 0 ? '이전 장소' : '이전 장소 없음'}" ${openLocationIndex > 0 ? '' : 'disabled'}>‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="${openLocationIndex < openLocations.length - 1 ? '다음 장소' : '다음 장소 없음'}" ${openLocationIndex < openLocations.length - 1 ? '' : 'disabled'}>›<span>다음</span></button>` : ''}
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
     </section>
     <p class="field-hint"><b>현장 힌트</b>${hint()}</p>${bagOpen ? toolBelt() : ''}
