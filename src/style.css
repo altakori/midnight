@@ -12,7 +12,7 @@
 .viewport{height:min(67vw,700px);margin-top:12px}
 .field-hint{display:flex;align-items:center;gap:10px;margin:9px 0 0;padding:0 3px;color:#aab5b7;font-size:11px;line-height:1.5}
 .field-hint b{flex:0 0 auto;color:var(--amber);font-size:9px;letter-spacing:.12em}
-.tool-belt{position:absolute;z-index:35;top:86px;right:clamp(12px,4vw,56px);display:block;width:min(420px,calc(100% - 24px));max-height:min(480px,70vh);overflow:auto;padding:0;border-color:#72838b;background:#071118f5;box-shadow:0 22px 70px #000d;backdrop-filter:blur(8px)}
+.tool-belt{position:absolute;z-index:35;top:86px;right:clamp(12px,4vw,56px);display:block;width:min(420px,calc(100% - 24px));max-height:min(480px,70vh);overflow:auto;padding:0;border-color:#72838b;background:#071118f5;box-shadow:0 22px 70px #000d;backdrop-filter:blur(8px)}.scene-backdrop-exit{position:absolute;z-index:6;inset:0;cursor:zoom-out}.bag-backdrop{position:fixed;z-index:34;inset:0;background:#02070b42;backdrop-filter:blur(1px);cursor:default}
 .bag-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #3e515c}
 .bag-head b{color:#d7cdbd;font-size:12px}
 .bag-head button{padding:6px 9px}

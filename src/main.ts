@@ -191,7 +191,7 @@ function sceneMarkup(): string {
     : '';
   const puzzle = detailOpen ? puzzleMarkup() : '';
   return `<div class="scene-image ${sceneClass}" style="background-image:url('${art}')"></div><div class="rain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>
-    ${detailOpen ? `<button class="back-to-scene" data-close-detail aria-label="가까이 보기에서 장소 전체로 돌아가기"><i aria-hidden="true">←</i> 뒤로</button>${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
+    ${detailOpen ? `<div class="scene-backdrop-exit" data-close-detail aria-hidden="true"></div><button class="back-to-scene" data-close-detail aria-label="가까이 보기에서 장소 전체로 돌아가기"><i aria-hidden="true">←</i> 뒤로</button>${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
 }
 function puzzleEntryLabel(): string {
   if (state.location === 'transmitter') return '송신기 다이얼 확인하기';
@@ -343,7 +343,7 @@ function render(): void {
       ${!detailOpen ? `<button class="turn left" data-turn="-1" aria-label="${openLocationIndex > 0 ? '이전 장소' : '이전 장소 없음'}" ${openLocationIndex > 0 ? '' : 'disabled'}>‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="${openLocationIndex < openLocations.length - 1 ? '다음 장소' : '다음 장소 없음'}" ${openLocationIndex < openLocations.length - 1 ? '' : 'disabled'}>›<span>다음</span></button>` : ''}
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
     </section>
-    <p class="field-hint"><b>현장 힌트</b>${hint()}</p>${bagOpen ? toolBelt() : ''}
+    <p class="field-hint"><b>현장 힌트</b>${hint()}</p>${bagOpen ? `<div class="bag-backdrop" data-close-bag aria-hidden="true"></div>${toolBelt()}` : ''}
     ${collectibleRevealMarkup()}${rewardMarkup()}${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}${itemDetailMarkup()}${galleryMarkup()}${jumpScareMarkup()}
   </main>`;
   bind();
@@ -415,12 +415,18 @@ function closeJumpScare(): void {
 function closeSceneDetail(): void {
   detailOpen = false;
   puzzleDraft = [];
+  restoreFocusSelector = '[data-open-detail]';
+  render();
+}
+function closeBag(): void {
+  bagOpen = false;
+  restoreFocusSelector = 'header [data-bag]';
   render();
 }
 function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-turn]').forEach((button) => button.onclick = () => { dismissReveal(); detailOpen = false; puzzleDraft = []; commit(move(state, Number(button.dataset.turn) as -1 | 1)); });
   document.querySelector<HTMLElement>('[data-open-detail]')?.addEventListener('click', () => { restoreFocusSelector = '[data-open-detail]'; detailOpen = true; puzzleDraft = []; render(); });
-  document.querySelector<HTMLElement>('[data-close-detail]')?.addEventListener('click', closeSceneDetail);
+  document.querySelectorAll<HTMLElement>('[data-close-detail]').forEach((element) => element.addEventListener('click', closeSceneDetail));
   document.querySelectorAll<HTMLElement>('[data-hotspot]').forEach((button) => button.onclick = () => {
     const spot = visibleHotspots(state).find((candidate) => candidate.id === button.dataset.hotspot);
     if (spot?.reward.type === 'item') {
@@ -478,7 +484,8 @@ function bind(): void {
   document.querySelector<HTMLElement>('[data-dismiss-reward]')?.addEventListener('click', () => { dismissReward(); render(); });
   document.querySelector<HTMLElement>('[data-cancel-memory]')?.addEventListener('click', () => commit(cancelPendingClue(state), true));
   document.querySelectorAll<HTMLElement>('[data-journal]').forEach((button) => button.onclick = () => { dismissReveal(); if (!journalOpen) restoreFocusSelector = 'header [data-journal]'; journalOpen = !journalOpen; render(); });
-  document.querySelectorAll<HTMLElement>('[data-bag]').forEach((button) => button.onclick = () => { dismissReveal(); if (!bagOpen) restoreFocusSelector = 'header [data-bag]'; bagOpen = !bagOpen; render(); });
+  document.querySelectorAll<HTMLElement>('[data-bag]').forEach((button) => button.onclick = () => { dismissReveal(); if (bagOpen) closeBag(); else { bagOpen = true; restoreFocusSelector = '.bag-head [data-bag]'; render(); } });
+  document.querySelector<HTMLElement>('[data-close-bag]')?.addEventListener('click', closeBag);
   document.querySelectorAll<HTMLElement>('[data-pause]').forEach((button) => button.onclick = () => { dismissReveal(); if (!paused) restoreFocusSelector = 'header [data-pause]'; paused = !paused; render(); });
   document.querySelectorAll<HTMLElement>('[data-gallery]').forEach((button) => button.onclick = () => { if (!galleryOpen) restoreFocusSelector = '[data-gallery]'; galleryOpen = !galleryOpen; render(); });
   document.querySelector<HTMLElement>('[data-close-gallery]')?.addEventListener('click', closeGallery);
