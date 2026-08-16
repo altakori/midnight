@@ -155,7 +155,10 @@ function objective(): string {
   if (state.ending === 'illusion') return '88.0 MHz가 만든 하윤의 정체를 확인했다.';
   if (state.ending === 'erase') return '방송을 지웠지만 하윤에 대한 기억도 사라졌다.';
   if (state.ending) return '하윤과 함께 방송국을 빠져나왔다.';
-  if (state.frequency.status !== 'solved') return '송신실에서 하윤의 88.0 MHz 신호를 잡자.';
+  if (state.frequency.status !== 'solved') {
+    const hasFrequencyTools = state.inventory.includes('handheld-radio') && state.inventory.includes('frequency-card');
+    return hasFrequencyTools ? '송신실에서 하윤의 88.0 MHz 신호를 잡자.' : '입구와 로비를 조사해 88.0 MHz 장비를 모으자.';
+  }
   if (state.breaker.status !== 'solved') return '전력실에서 구조용 회로 3개만 켜자.';
   if (state.recordings.status !== 'solved') return '보관실 테이프를 사건 순서대로 놓자.';
   if (state.flashlight.status !== 'solved') return '세 색의 광량을 맞춰 숨은 문을 열자.';
@@ -191,7 +194,7 @@ function sceneMarkup(): string {
     : '';
   const puzzle = detailOpen ? puzzleMarkup() : '';
   return `<div class="scene-image ${sceneClass}" style="background-image:url('${art}')"></div><div class="rain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>
-    ${detailOpen ? `<div class="scene-backdrop-exit" data-close-detail aria-hidden="true"></div><button class="back-to-scene" data-close-detail aria-label="가까이 보기에서 장소 전체로 돌아가기"><i aria-hidden="true">←</i> 뒤로</button>${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
+    ${detailOpen ? `<div class="scene-backdrop-exit" data-close-detail aria-hidden="true"></div><button class="back-to-scene" data-close-detail aria-label="가까이 보기에서 장소 전체로 돌아가기"><i aria-hidden="true">←</i> 뒤로</button>${state.found.size === 0 ? '<p class="detail-guide"><b>첫 조사</b> · 장면 속 도구 그림을 누르면 가방에 들어갑니다. 빈 배경을 누르면 돌아갑니다.</p>' : ''}${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
 }
 function puzzleEntryLabel(): string {
   if (state.location === 'transmitter') return '송신기 다이얼 확인하기';
@@ -268,13 +271,22 @@ function finalPuzzleMarkup(): string {
   const ready = state.flashlight.status === 'solved' && state.inventory.includes('memory-tape') && state.inventory.includes('sibling-photo') && state.clues.has('false-script');
   return `<section class="puzzle-panel final-puzzle ${ready ? '' : 'locked'} ${state.finalStatement.attempts ? 'has-attempt' : ''}"><span>다섯 번째 퍼즐</span><h3>거짓 방송 하나 빼기</h3><p>사진의 시각, 기억 테이프, 방송 기록과 충돌하는 문장을 골라 송신기에서 빼자.</p>${ready ? `<div class="evidence-check"><b>사진</b><b>테이프</b><b>방송 기록</b></div><div class="statement-stack">${FINAL_STATEMENTS.map((text, index) => `<button data-statement="${index}"><span>방송 ${index + 1}</span><b>${escapeHtml(text)}</b></button>`).join('')}</div>` : '<em>동생 사진, 기억 테이프, 수상한 방송 기록이 모두 필요하다.</em>'}${state.finalStatement.feedback ? `<small class="puzzle-feedback">${escapeHtml(state.finalStatement.feedback)}</small>` : ''}</section>`;
 }
+function storyRecapMarkup(): string {
+  const decisions = CLUES.map((clue) => {
+    const choice = state.clueDecisions[clue.id];
+    if (!choice) return '';
+    return `<li><b>${escapeHtml(clue.title)}</b><span>${choice === 'record' ? '믿고 남김' : '방송이 만든 기억으로 의심함'}</span></li>`;
+  }).join('');
+  return `<aside class="story-recap"><span>옥상 앞 최종 정리</span><h4>지금까지 확인한 사실</h4><ul class="recap-facts"><li>출입 기록에 하윤은 없었다.</li><li>구조 음성은 과거 가족 통화의 파형을 이어 붙인 흔적이 있다.</li><li>23:58 사진은 하윤이 23:40 떠났다는 방송과 충돌한다.</li></ul><h4>내가 판단한 기억</h4><ul class="recap-decisions">${decisions || '<li><span>아직 판단한 기억이 없다.</span></li>'}</ul></aside>`;
+}
 function endingChoicesMarkup(): string {
   if (state.finalStatement.status !== 'solved') return '<section class="puzzle-panel locked"><h3>옥상 문이 잠겨 있다</h3><p>심야 부스에서 거짓 방송 하나를 먼저 빼자.</p></section>';
   const hasKey = state.inventory.includes('roof-key');
   if (!hasKey) return '<section class="puzzle-panel locked"><h3>하윤이 난간 끝에 있다</h3><p>사다리 옆에서 옥상 열쇠를 찾자.</p></section>';
   const choices = endingAvailability(state);
-  if (choices.resolved < 2) return `<section class="puzzle-panel final-choice locked"><span>마지막 선택</span><h3>아직 어떤 기억을 믿을지 정하지 못했다</h3><p>방송국에서 찾은 기억을 두 개 이상 확인한 뒤 돌아오자.</p></section>`;
-  return `<section class="puzzle-panel final-choice"><span>마지막 선택 · 지금까지의 행동이 남긴 선택지</span><h3>난간 끝의 목소리를 어떻게 받아들일까?</h3><button data-ending="restore" ${choices.restore ? '' : 'disabled'}>하윤의 기억을 믿고 송신기를 끈다${choices.restore ? '' : ' · 잠김'}</button><button data-ending="erase" ${choices.erase ? '' : 'disabled'}>모든 기록을 의심하고 지운다${choices.erase ? '' : ' · 잠김'}</button><button data-ending="human" ${choices.human ? '' : 'disabled'}>서로 다른 기억을 맞춰 보고 함께 내려간다${choices.human ? '' : ' · 잠김'}</button><button class="illusion-choice" data-ending="illusion" ${choices.illusion ? '' : 'disabled'}>88.0 MHz의 목소리가 어디서 왔는지 확인한다${choices.illusion ? '' : ' · 모든 기억을 의심해야 함'}</button></section>`;
+  const recap = storyRecapMarkup();
+  if (choices.resolved < 2) return `<section class="puzzle-panel final-choice locked"><span>마지막 선택</span><h3>아직 어떤 기억을 믿을지 정하지 못했다</h3><p>방송국에서 찾은 기억을 두 개 이상 확인한 뒤 돌아오자.</p>${recap}</section>`;
+  return `<section class="puzzle-panel final-choice"><span>마지막 선택 · 지금까지의 행동이 남긴 선택지</span><h3>난간 끝의 목소리를 어떻게 받아들일까?</h3>${recap}<button data-ending="restore" ${choices.restore ? '' : 'disabled'}>하윤의 기억을 믿고 송신기를 끈다${choices.restore ? '' : ' · 잠김: 기억을 2개 이상 믿어야 함'}</button><button data-ending="erase" ${choices.erase ? '' : 'disabled'}>모든 기록을 의심하고 지운다${choices.erase ? '' : ' · 잠김: 기억을 2개 이상 의심해야 함'}</button><button data-ending="human" ${choices.human ? '' : 'disabled'}>서로 다른 기억을 맞춰 보고 함께 내려간다${choices.human ? '' : ' · 잠김: 믿은 기억과 의심한 기억이 모두 필요함'}</button><button class="illusion-choice" data-ending="illusion" ${choices.illusion ? '' : 'disabled'}>88.0 MHz의 목소리가 어디서 왔는지 확인한다${choices.illusion ? '' : ' · 잠김: 세 기억을 모두 의심해야 함'}</button></section>`;
 }
 function toolBelt(): string {
   const tools = state.inventory.filter((id): id is ItemId => Boolean(ITEM_INFO[id]));
@@ -330,7 +342,7 @@ function endingMarkup(): string {
   return `<section class="ending-screen ending-${state.ending}" style="background-image:linear-gradient(#02080ccc,#02080cee),url('${art}')"><div><small>${escapeHtml(info.kicker)}</small><h2>${escapeHtml(info.title)}</h2><p>${escapeHtml(state.message)}</p><b>${escapeHtml(info.summary)}</b><div class="ending-actions"><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-reset>처음부터 다시 하기</button></div></div></section>`;
 }
 function introMarkup(): string {
-  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폭풍 속 해월 제7중계소</span><h2>자정까지 30분.<br>옥상의 하윤을 구하라.</h2><p class="intro-call">“오빠, 방송을 믿지 마. <b>88.0</b>을 찾아.”</p><p>전화가 끊겼다. 자정이 되면 방송은 하윤의 위치와 당신의 기억을 모두 지운다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>거짓 방송을 끄고 옥상으로 올라간다.</li></ol><small class="horror-note">공포 화면과 짧은 음성 연출이 포함됩니다.</small><div class="intro-actions"><button data-start>구조 신호 찾기</button><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button></div></section></aside>`;
+  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폭풍 속 해월 제7중계소</span><h2>자정까지 30분.<br>옥상의 하윤을 구하라.</h2><p class="intro-call">“오빠, 방송을 믿지 마. <b>88.0</b>을 찾아.”</p><p>전화가 끊겼다. 자정이 되면 방송은 하윤의 위치와 당신의 기억을 모두 지운다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>마지막 다섯 번째 퍼즐에서 거짓 방송을 판별하고 옥상으로 올라간다.</li></ol><small class="playtime-note">실시간 제한은 없습니다. 탐색 속도는 결말에 영향을 주지 않습니다.</small><small class="horror-note">공포 화면과 짧은 음성 연출이 포함됩니다.</small><div class="intro-actions"><button data-start>구조 신호 찾기</button><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button></div></section></aside>`;
 }
 function render(): void {
   const location = LOCATIONS[state.location];
