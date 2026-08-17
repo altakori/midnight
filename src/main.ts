@@ -50,19 +50,19 @@ function storageRemove(kind: StorageKind, key: string): void {
 }
 
 const ENDING_INFO: Record<Ending, { kicker: string; title: string; summary: string }> = {
-  restore: { kicker: 'ENDING 01 · 구조', title: '자정 전에 하윤을 데리고 내려왔다', summary: '하윤의 기억을 사실로 받아들여 송신기를 파괴하고 즉시 산을 떠났다. 방송국의 기록은 폭우 속에 남았다.' },
-  erase: { kicker: 'ENDING 02 · 잃은 기억', title: '방송은 멈췄지만 하윤을 잊었다', summary: '모든 기록을 지운 대가로 이곳에 온 이유까지 사라졌다.' },
-  human: { kicker: 'ENDING 03 · 공개 방송', title: '두 개의 기억을 세상에 남겼다', summary: '송신기를 끄지 않고 상충하는 두 증언을 새벽 비상망에 송출했다. 구조대는 두 사람과 중계소의 기록을 함께 발견했다.' },
-  illusion: { kicker: 'ENDING 04 · 없는 목소리', title: '하윤은 방송이 만든 허상이었다', summary: '88.0 MHz는 가장 그리운 목소리와 그 목소리를 잃은 기억까지 만들어 냈다.' },
+  restore: { kicker: 'ENDING 01 · 구조', title: '합성 음성 너머의 하윤을 구조했다', summary: '가짜 호출은 버리고 사진·원본 릴·발자국을 따라 옥상의 실제 하윤을 구조했다. 송신기는 파괴돼 실험 기록 일부는 사라졌다.' },
+  erase: { kicker: 'ENDING 02 · 잃은 기억', title: '원본까지 지워 하윤을 놓쳤다', summary: '합성과 원본을 구분하지 않고 모두 지웠다. 방송은 멈췄지만 하윤의 실제 경고와 찾아온 이유도 손상됐다.' },
+  human: { kicker: 'ENDING 03 · 공개 방송', title: '비상망에 비교 증거를 송출했다', summary: '실제 경고 릴, 합성 파형, 사진·출입 시각을 한 묶음으로 보냈다. 외부 수신국이 두 사람을 구조하고 음성 조작 실험을 확인했다.' },
+  illusion: { kicker: 'ENDING 04 · 오판', title: '실제 하윤을 합성 음성으로 오인했다', summary: '모든 흔적을 조작으로 분류한 결과 옥상의 실제 하윤에게 다가가지 않았다. 방송은 사람을 허상으로 보게 만드는 데 성공했다.' },
 };
 const ENDINGS = Object.keys(ENDING_INFO) as Ending[];
 const ENDING_STORY: Record<Ending, { art: string; quote: string; beats: string[] }> = {
   restore: {
     art: 'ending-restore.webp',
-    quote: '“이번에는 내가 네 목소리를 놓치지 않을게.”',
+    quote: '“가짜 목소리가 아니라, 네 숨을 따라왔어.”',
     beats: [
-      '23:58. 마지막 안테나가 불꽃을 토하며 꺾였다. 반복되던 방송이 끊기자, 폭우 사이로 처음 듣는 하윤의 숨소리가 돌아왔다.',
-      '옥상 난간 아래 웅크린 하윤은 사진 속 얼굴보다 지쳐 있었다. 나는 젖은 손을 잡았고, 둘은 어떤 기억이 진짜였는지 묻지 않은 채 중계소를 빠져나왔다.',
+      '23:58 사진, 23:55 원본 릴, 정비 통로의 젖은 발자국이 같은 옥상을 가리켰다. 합성 호출이 아니라 서로 독립된 세 물리 증거였다.',
+      '송신기를 부수자 숨 없는 88.0 호출이 끊겼다. 난간 아래 하윤의 실제 숨과 비에 젖은 옷자락만 남았고, 나는 그 손을 잡았다.',
       '00:07. 산길 아래 구조 차량의 불빛이 안개를 갈랐다. 뒤에서 중계소가 완전히 어두워졌지만, 맞잡은 손의 온도만은 지워지지 않았다.',
     ],
   },
@@ -70,23 +70,23 @@ const ENDING_STORY: Record<Ending, { art: string; quote: string; beats: string[]
     art: 'ending-erase.webp',
     quote: '“내가 여기까지 누구를 찾으러 왔더라.”',
     beats: [
-      '23:59. 마지막 기록을 지우자 송신기는 고요해졌다. 동시에 사진 속 얼굴도 빗물에 번진 잉크처럼 하얗게 사라졌다.',
-      '유리 너머에 누군가 서 있었지만 이름이 떠오르지 않았다. 마이크는 한 번 숨을 들이켠 뒤, 아무 말도 송출하지 않았다.',
+      '23:59. 합성 파형만 지우려던 삭제가 사진 시각, 실제 경고 릴, 통로 기록까지 번졌다. 원본과 복제본을 분리하지 않은 대가였다.',
+      '옥상 인터폰에는 하윤의 연속된 숨이 남아 있었지만, 그 숨을 찾아야 할 이유가 떠오르지 않았다. 마이크는 한 번 숨을 들이켠 뒤 침묵했다.',
       '새벽 구조대는 혼자 앉아 있는 나를 발견했다. 손에는 빈 사진 한 장뿐이었고, 산을 내려오는 내내 한 자리가 비어 있다는 사실만 설명할 수 없었다.',
     ],
   },
   human: {
     art: 'ending-human.webp',
-    quote: '“진실이 하나가 아니라면, 둘 다 세상에 남기자.”',
+    quote: '“진짜와 가짜를 나란히 보내면, 밖에서도 구별할 수 있어.”',
     beats: [
-      '23:57. 하윤의 테이프와 내 녹음을 서로 다른 두 채널에 걸었다. 청록과 호박 파형이 겹치지 않은 채 같은 88.0 MHz를 탔다.',
-      '한쪽은 하윤이 버려졌다고 말했고, 다른 쪽은 내가 끝까지 곁에 있었다고 증언했다. 우리는 하나를 지워 결론을 만드는 대신 모순 자체를 비상망에 보냈다.',
-      '00:03. 계곡의 수신등이 하나씩 켜지고 구조 차량이 산길로 방향을 틀었다. 중계소는 더 이상 기억을 독점할 수 없었다. 아침은 두 사람의 진술을 모두 가진 채 시작됐다.',
+      '23:57. 23:55 실제 경고 릴, 과거 통화를 잘라 만든 합성 파형, 23:58 사진과 정문 시각을 하나의 증거 묶음으로 만들었다.',
+      '실제 릴에는 숨·비·방 잔향이 있었고 합성본에는 절단 잡음만 있었다. 둘을 나란히 88.0 비상망에 보내 외부 수신자가 직접 비교할 수 있게 했다.',
+      '00:03. 산 아래 아마추어 무선국 세 곳이 신호를 받아 위치를 역추적했고 구조대가 옥상으로 향했다. 두 사람은 구조됐고, 파형·시각·동선은 공명 복원 실험의 외부 증거가 됐다.',
     ],
   },
   illusion: {
     art: 'hayun-jumpscare.webp',
-    quote: '“오빠, 네가 기억하는 내가 정말 나야?”',
+    quote: '“오빠, 숨이 들리는데도 내가 가짜로 보여?”',
     beats: [ENDING_INFO.illusion.summary],
   },
 };
@@ -110,6 +110,8 @@ let rewardBeat: { kicker: string; title: string; text: string; major: boolean } 
 let rewardTimer: number | undefined;
 let scareTimer: number | undefined;
 let jumpScareRequestedFullscreen = false;
+let rotationPromptDismissed = storageGet('session', 'midnight-frequency-rotation-dismissed') === '1';
+let orientationNotice = '';
 const unlockedEndings = loadUnlockedEndings();
 const jumpScareAudio = new Audio(asset('audio/hayun-jumpscare.mp3'));
 jumpScareAudio.preload = 'auto';
@@ -119,10 +121,41 @@ function primeSoundscape(): void { void stationSoundscape.start().catch(() => { 
 window.addEventListener('pointerdown', primeSoundscape, { once: true, capture: true });
 window.addEventListener('keydown', primeSoundscape, { once: true, capture: true });
 
+type LockableOrientation = ScreenOrientation & { lock?: (orientation: 'landscape') => Promise<void>; unlock?: () => void };
+function fullscreenActive(): boolean { return Boolean(document.fullscreenElement); }
+async function toggleLandscapeMode(): Promise<void> {
+  if (fullscreenActive()) {
+    try { (screen.orientation as LockableOrientation).unlock?.(); } catch { /* Unlock support varies. */ }
+    await document.exitFullscreen().catch(() => { /* The browser may already have exited. */ });
+    orientationNotice = '전체화면을 종료했습니다.';
+    render();
+    return;
+  }
+  try {
+    await document.documentElement.requestFullscreen();
+    const orientation = screen.orientation as LockableOrientation;
+    if (orientation.lock) {
+      await orientation.lock('landscape');
+      orientationNotice = '가로 전체화면으로 전환했습니다.';
+    } else {
+      orientationNotice = '전체화면입니다. 기기를 직접 가로로 돌려 주세요.';
+    }
+  } catch {
+    orientationNotice = '이 브라우저는 가로 잠금을 허용하지 않습니다. 기기를 직접 가로로 돌려 주세요.';
+  }
+  rotationPromptDismissed = true;
+  storageSet('session', 'midnight-frequency-rotation-dismissed', '1');
+  render();
+}
+function rotationPromptMarkup(): string {
+  if (rotationPromptDismissed) return '';
+  return '<aside class="rotation-prompt" role="dialog" aria-label="가로 화면 권장"><b>폰에서는 가로 화면을 권장합니다</b><p>장면과 퍼즐을 더 넓게 보려면 가로 전체화면으로 전환하세요.</p><div><button data-landscape>가로 전체화면</button><button data-dismiss-rotation>세로로 계속</button></div></aside>';
+}
+
 const PUZZLE_META = {
   transmitter: {
-    key: 'frequency', title: '하윤의 구조 주파수', instruction: '다이얼을 천천히 돌려 목소리가 가장 선명한 지점에 고정하자.',
-    evidence: ['카드에 80–90 MHz가 표시돼 있다.', '88 근처에서 “옥상”이라는 말이 들린다.', '신호 막대가 모두 차면 고정할 수 있다.'],
+    key: 'frequency', title: '합성 호출 주파수', instruction: '88.0을 고정한 뒤, 목소리에 숨과 방 잔향이 있는지 확인하자.',
+    evidence: ['정비 카드는 88.0이 과거에도 같은 가족 음성을 만들었다고 기록한다.', '합성 호출에는 단어 사이 숨과 방 잔향이 없다.', '실제 전화는 “목소리보다 숨을 확인해”라고 경고했다.'],
     options: [] as readonly (readonly [string, string])[], limit: 1,
   },
   power: {
@@ -132,7 +165,7 @@ const PUZZLE_META = {
   },
   archive: {
     key: 'recordings', title: '순서가 뒤섞인 녹음', instruction: '네 테이프 속 시각을 비교해 사건 순서대로 릴에 걸자.',
-    evidence: ['폭풍 경보 · 23:30', '출입문 기록 · 23:42', '하윤의 경고 · 23:55', '기억 삭제 방송 · 00:00'],
+    evidence: ['자동 방송 재가동 · 23:30', '오빠의 정문 입장 · 23:42', '숨과 잔향이 있는 실제 경고 · 23:55', '기억 덮어쓰기 예정 · 00:00'],
     options: [['warning', '하윤의 경고'], ['erasure', '기억 삭제 방송'], ['storm', '폭풍 경보'], ['arrival', '출입문 열림']], limit: 4,
   },
   studio: {
@@ -357,9 +390,9 @@ function storyRecapMarkup(): string {
   const decisions = CLUES.map((clue) => {
     const choice = state.clueDecisions[clue.id];
     if (!choice) return '';
-    return `<li><b>${escapeHtml(clue.title)}</b><span>${choice === 'record' ? '믿고 남김' : '방송이 만든 기억으로 의심함'}</span></li>`;
+    return `<li><b>${escapeHtml(clue.title)}</b><span>${choice === 'record' ? '증거로 보존' : '합성 가능성으로 격리'}</span></li>`;
   }).join('');
-  return `<aside class="story-recap"><span>옥상 앞 최종 정리</span><h4>지금까지 확인한 사실</h4><ul class="recap-facts"><li>출입 기록에 하윤은 없었다.</li><li>구조 음성은 과거 가족 통화의 파형을 이어 붙인 흔적이 있다.</li><li>23:58 사진은 하윤이 23:40 떠났다는 방송과 충돌한다.</li></ul><h4>내가 판단한 기억</h4><ul class="recap-decisions">${decisions || '<li><span>아직 판단한 기억이 없다.</span></li>'}</ul></aside>`;
+  return `<aside class="story-recap"><span>옥상 앞 증거 정리</span><p class="recap-verdict"><b>증거 결론</b> 하윤은 실제로 옥상에 있고, 88.0 구조 호출만 과거 통화를 자른 합성이다.</p><h4>확인된 사실</h4><ul class="recap-facts"><li>23:58 사진·발자국·옥상 흔적은 하윤의 실제 동선을 가리킨다.</li><li>88.0 호출은 과거 통화를 자른 합성이며 숨과 방 잔향이 없다.</li><li>23:55 실제 릴에는 연속된 숨·비·스튜디오 잔향이 있다.</li></ul><h4>내가 분류한 기록</h4><ul class="recap-decisions">${decisions || '<li><span>아직 분류한 기록이 없다.</span></li>'}</ul></aside>`;
 }
 function endingChoicesMarkup(): string {
   if (state.finalStatement.status !== 'solved') return '<section class="puzzle-panel locked"><h3>옥상 문이 잠겨 있다</h3><p>심야 부스에서 거짓 방송 하나를 먼저 빼자.</p></section>';
@@ -367,8 +400,8 @@ function endingChoicesMarkup(): string {
   if (!hasKey) return '<section class="puzzle-panel locked"><h3>하윤이 난간 끝에 있다</h3><p>사다리 옆에서 옥상 열쇠를 찾자.</p></section>';
   const choices = endingAvailability(state);
   const recap = storyRecapMarkup();
-  if (choices.resolved < 2) return `<section class="puzzle-panel final-choice locked"><span>마지막 선택</span><h3>아직 어떤 기억을 믿을지 정하지 못했다</h3><p>방송국에서 찾은 기억을 두 개 이상 확인한 뒤 돌아오자.</p>${recap}</section>`;
-  return `<section class="puzzle-panel final-choice"><span>마지막 선택 · 지금까지의 행동이 남긴 선택지</span><h3>난간 끝의 목소리를 어떻게 받아들일까?</h3>${recap}<button data-ending="restore" ${choices.restore ? '' : 'disabled'}>하윤의 기억을 믿고 송신기를 부순 뒤 함께 탈출한다${choices.restore ? '' : ' · 잠김: 기억을 2개 이상 믿어야 함'}</button><button data-ending="erase" ${choices.erase ? '' : 'disabled'}>모든 기록을 의심하고 지운다${choices.erase ? '' : ' · 잠김: 기억을 2개 이상 의심해야 함'}</button><button data-ending="human" ${choices.human ? '' : 'disabled'}>상충하는 두 기억을 함께 송출해 중계소를 폭로한다${choices.human ? '' : ' · 잠김: 믿은 기억과 의심한 기억이 모두 필요함'}</button><button class="illusion-choice" data-ending="illusion" ${choices.illusion ? '' : 'disabled'}>88.0 MHz의 목소리가 어디서 왔는지 확인한다${choices.illusion ? '' : ' · 잠김: 세 기억을 모두 의심해야 함'}</button></section>`;
+  if (choices.resolved < 2) return `<section class="puzzle-panel final-choice locked"><span>마지막 선택</span><h3>아직 증거 분류가 부족하다</h3><p>방송국에서 찾은 기록을 두 개 이상 보존하거나 합성으로 격리한 뒤 돌아오자.</p>${recap}</section>`;
+  return `<section class="puzzle-panel final-choice"><span>마지막 선택 · 행동, 근거, 결과를 확인하세요</span><h3>확인한 증거를 어떻게 처리할까?</h3>${recap}<button data-ending="restore" ${choices.restore ? '' : 'disabled'}>구조 · 사진·원본 릴·발자국을 따라 실제 하윤을 구조하고 송신기를 부순다${choices.restore ? '' : ' · 잠김: 기록을 2개 이상 증거로 보존'}</button><button data-ending="erase" ${choices.erase ? '' : 'disabled'}>전체 삭제 · 원본과 합성을 구분하지 않고 모든 기록을 지운다${choices.erase ? '' : ' · 잠김: 기록을 2개 이상 합성으로 격리'}</button><button data-ending="human" ${choices.human ? '' : 'disabled'}>공개 방송 · 실제 릴과 합성 파형을 비교 증거로 보내 외부 수신국이 구조 위치와 조작을 확인하게 한다${choices.human ? '' : ' · 잠김: 보존 기록과 격리 기록이 모두 필요'}</button><button class="illusion-choice" data-ending="illusion" ${choices.illusion ? '' : 'disabled'}>오판 · 모든 흔적을 합성으로 보고 옥상의 실제 하윤에게 다가가지 않는다${choices.illusion ? '' : ' · 잠김: 세 기록을 모두 합성으로 격리'}</button></section>`;
 }
 function toolBelt(): string {
   const tools = state.inventory.filter((id): id is ItemId => Boolean(ITEM_INFO[id]));
@@ -410,15 +443,15 @@ function journalMarkup(): string {
     const clue = CLUES.find((candidate) => candidate.id === id);
     if (!clue) return '';
     const choice = state.clueDecisions[id];
-    return `<article class="memory-card ${choice === 'delete' ? 'doubted' : ''}"><small>${escapeHtml(LOCATIONS[clue.location].title)}</small><h3>${escapeHtml(clue.title)}</h3><p>${escapeHtml(clue.text)}</p><b>${choice === 'delete' ? '방송이 만든 기억이라 의심해 지웠다' : '내 기억이라 믿고 남겼다'}</b></article>`;
+    return `<article class="memory-card ${choice === 'delete' ? 'doubted' : ''}"><small>${escapeHtml(LOCATIONS[clue.location].title)}</small><h3>${escapeHtml(clue.title)}</h3><p>${escapeHtml(clue.text)}</p><b>${choice === 'delete' ? '합성 가능성으로 격리했다' : '물리적 맥락과 함께 증거로 보존했다'}</b></article>`;
   }).join('');
-  return `<aside class="screen-overlay journal" role="dialog" aria-modal="true"><button data-journal class="overlay-close">닫기</button><span>찾은 기억 ${state.clues.size}/3</span><h2>확인한 사실</h2><p>이 사실을 퍼즐과 마지막 방송에 이용하자.</p><div>${entries || '<em>아직 확인한 기억이 없다.</em>'}</div></aside>`;
+  return `<aside class="screen-overlay journal" role="dialog" aria-modal="true"><button data-journal class="overlay-close">닫기</button><span>분류한 기록 ${state.clues.size}/3</span><h2>증거 분류</h2><p>각 기록을 물리적 증거로 보존할지, 합성 가능성으로 격리할지 판단했다.</p><div>${entries || '<em>아직 분류한 기록이 없다.</em>'}</div></aside>`;
 }
 function memoryChoiceMarkup(): string {
   if (!state.pendingClue) return '';
   const clue = CLUES.find((candidate) => candidate.id === state.pendingClue);
   if (!clue) return '';
-  return `<aside class="screen-overlay memory-choice" role="dialog" aria-modal="true" aria-labelledby="memory-title"><section><span>찾은 기억 · 이 판단은 마지막 선택을 바꾼다</span><h2 id="memory-title">${escapeHtml(clue.title)}</h2><p>${escapeHtml(clue.text)}</p><button data-memory="record">믿는다 · 이 기억으로 하윤을 찾는다</button><button data-memory="delete">의심한다 · 방송이 만든 기억으로 본다</button><button data-cancel-memory>지금은 결정하지 않는다</button></section></aside>`;
+  return `<aside class="screen-overlay memory-choice" role="dialog" aria-modal="true" aria-labelledby="memory-title"><section><span>찾은 기억 · 이 판단은 마지막 선택을 바꾼다</span><h2 id="memory-title">${escapeHtml(clue.title)}</h2><p>${escapeHtml(clue.text)}</p><button data-memory="record">증거로 보존 · 물리적 맥락과 함께 남긴다</button><button data-memory="delete">합성으로 격리 · 구조 판단에서 제외한다</button><button data-cancel-memory>지금은 결정하지 않는다</button></section></aside>`;
 }
 function endingMarkup(): string {
   const ending = replayEnding ?? state.ending;
@@ -431,7 +464,7 @@ function endingMarkup(): string {
   return `<section class="ending-screen ending-${ending}"><div class="ending-hero" style="background-image:url('${art}')" role="img" aria-label="${escapeHtml(info.title)} 엔딩 장면"></div><div class="ending-grade" aria-hidden="true"></div><article><small>${escapeHtml(info.kicker)}</small><h2>${escapeHtml(info.title)}</h2><blockquote>${escapeHtml(story.quote)}</blockquote><div class="ending-story">${beats}</div><b>${escapeHtml(info.summary)}</b><div class="ending-actions">${primaryAction}<button data-reset>처음부터 다시 하기</button></div></article></section>`;
 }
 function introMarkup(): string {
-  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폭풍 속 해월 제7중계소</span><h2>자정까지 30분.<br>옥상의 하윤을 구하라.</h2><p class="intro-call">“오빠, 방송을 믿지 마. <b>88.0</b>을 찾아.”</p><p>전화가 끊겼다. 자정이 되면 방송은 하윤의 위치와 당신의 기억을 모두 지운다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>마지막 다섯 번째 퍼즐에서 거짓 방송을 판별하고 옥상으로 올라간다.</li></ol><small class="playtime-note">실시간 제한은 없습니다. 탐색 속도는 결말에 영향을 주지 않습니다.</small><small class="horror-note">공포 화면과 짧은 비명·음향 연출이 포함됩니다.</small><div class="intro-actions"><button data-start>구조 신호 찾기</button><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button></div></section></aside>`;
+  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폐쇄된 해월 제7중계소 · 공명 복원 방송 재가동</span><h2>자정까지 30분.<br>진짜 하윤의 흔적을 구별하라.</h2><p class="intro-call">“오빠, 목소리를 따라오지 마. <b>숨과 방의 울림</b>을 확인해.”</p><p>음향 복원 기사 하윤은 폐쇄 방송국의 불법 실험 기록을 찾다 옥상에 고립됐다. 자정이 되면 공명 복원 방송이 지난 30분의 기억과 증거를 합성 문장으로 덮어쓴다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>마지막 다섯 번째 퍼즐에서 거짓 방송을 판별하고 옥상으로 올라간다.</li></ol><small class="playtime-note">실시간 제한은 없습니다. 탐색 속도는 결말에 영향을 주지 않습니다.</small><small class="horror-note">공포 화면과 짧은 비명·음향 연출이 포함됩니다.</small><div class="intro-actions"><button data-start>구조 신호 찾기</button><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button></div></section></aside>`;
 }
 function render(): void {
   const location = LOCATIONS[state.location];
@@ -439,13 +472,13 @@ function render(): void {
   const placeNumber = LOCATION_ORDER.indexOf(state.location) + 1;
   const openLocationIndex = openLocations.indexOf(state.location);
   app.innerHTML = `<main class="game ${signalMood()} ${paused ? 'paused' : ''} ${detailOpen ? 'is-detail' : ''} ${state.ending ? 'has-ending' : ''}">
-    <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="퍼즐 ${puzzleSolved()}/5 완료">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>기억 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-gallery>엔딩 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-audio aria-pressed="${stationSoundscape.isEnabled()}" aria-label="전체 음향 ${stationSoundscape.isEnabled() ? '켜짐' : '꺼짐'}. 눌러서 전환" title="전체 음향 켜기 또는 끄기">전체 ${stationSoundscape.isEnabled() ? '●' : '○'}</button><label class="music-volume" title="배경 음악 음량"><span>BGM <output data-music-value>${stationSoundscape.getMusicVolume()}</output></span><input data-music-volume type="range" min="0" max="100" step="1" value="${stationSoundscape.getMusicVolume()}" aria-label="배경 음악 음량 ${stationSoundscape.getMusicVolume()}%"></label><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
+    <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="퍼즐 ${puzzleSolved()}/5 완료">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>증거 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-gallery>엔딩 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-audio aria-pressed="${stationSoundscape.isEnabled()}" aria-label="전체 음향 ${stationSoundscape.isEnabled() ? '켜짐' : '꺼짐'}. 눌러서 전환" title="전체 음향 켜기 또는 끄기">전체 ${stationSoundscape.isEnabled() ? '●' : '○'}</button><label class="music-volume" title="배경 음악 음량"><span>BGM <output data-music-value>${stationSoundscape.getMusicVolume()}</output></span><input data-music-volume type="range" min="0" max="100" step="1" value="${stationSoundscape.getMusicVolume()}" aria-label="배경 음악 음량 ${stationSoundscape.getMusicVolume()}%"></label><button data-landscape aria-label="${fullscreenActive() ? '전체화면 종료' : '가로 전체화면 전환'}">${fullscreenActive() ? '창모드' : '가로 전체'}</button><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
     <section class="viewport" aria-label="${escapeHtml(location.title)}"><div class="place"><small>장소 ${String(placeNumber).padStart(2, '0')} · ${openLocations.length}/10 열림</small><h2>${escapeHtml(location.title)}</h2><p>${escapeHtml(location.subtitle)}</p></div>${sceneMarkup()}
       ${!detailOpen ? `<button class="turn left" data-turn="-1" aria-label="${openLocationIndex > 0 ? '이전 장소' : '이전 장소 없음'}" ${openLocationIndex > 0 ? '' : 'disabled'}>‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="${openLocationIndex < openLocations.length - 1 ? '다음 장소' : '다음 장소 없음'}" ${openLocationIndex < openLocations.length - 1 ? '' : 'disabled'}>›<span>다음</span></button>` : ''}
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
     </section>
     <p class="field-hint"><b>현장 힌트</b>${hint()}</p>${bagOpen ? `<div class="bag-backdrop" data-close-bag aria-hidden="true"></div><p class="backdrop-dismiss-hint bag-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p>${toolBelt()}` : ''}
-    ${collectibleRevealMarkup()}${rewardMarkup()}${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}${itemDetailMarkup()}${galleryMarkup()}${jumpScareMarkup()}
+    ${collectibleRevealMarkup()}${rewardMarkup()}${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}${itemDetailMarkup()}${galleryMarkup()}${jumpScareMarkup()}${rotationPromptMarkup()}${orientationNotice ? `<p class="orientation-notice" role="status">${escapeHtml(orientationNotice)}</p>` : ''}
   </main>`;
   bind();
   stationSoundscape.sync(state.location, state.tension, paused || introOpen || jumpScareOpen || Boolean(state.ending) || Boolean(replayEnding));
@@ -607,6 +640,12 @@ function bind(): void {
   document.querySelector<HTMLElement>('[data-audio]')?.addEventListener('click', () => {
     void stationSoundscape.toggle().then((enabled) => { if (!enabled) stopJumpScareSound(); render(); }).catch(render);
   });
+  document.querySelectorAll<HTMLElement>('[data-landscape]').forEach((button) => button.addEventListener('click', () => { void toggleLandscapeMode(); }));
+  document.querySelector<HTMLElement>('[data-dismiss-rotation]')?.addEventListener('click', () => {
+    rotationPromptDismissed = true;
+    storageSet('session', 'midnight-frequency-rotation-dismissed', '1');
+    render();
+  });
   document.querySelector<HTMLInputElement>('[data-music-volume]')?.addEventListener('input', (event) => {
     const input = event.currentTarget as HTMLInputElement;
     stationSoundscape.setMusicVolume(Number(input.value));
@@ -641,5 +680,11 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && detailOpen) { closeSceneDetail(); return; }
   if (!detailOpen && (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft')) { dismissReveal(); dismissSideNavTutorial(); stationSoundscape.cue('move'); commit(move(state, -1)); }
   if (!detailOpen && (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight')) { dismissReveal(); dismissSideNavTutorial(); stationSoundscape.cue('move'); commit(move(state, 1)); }
+});
+document.addEventListener('fullscreenchange', () => {
+  if (!fullscreenActive()) {
+    try { (screen.orientation as LockableOrientation).unlock?.(); } catch { /* Unlock support varies. */ }
+  }
+  render();
 });
 render();

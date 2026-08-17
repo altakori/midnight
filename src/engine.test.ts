@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ITEM_INFO, arrangeRecordings, arrivalMessage, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, endingAvailability, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
+import { CLUES, FINAL_STATEMENTS, ITEM_INFO, arrangeRecordings, arrivalMessage, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, endingAvailability, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
 
 function go(state: GameState, target: Location): GameState {
   for (let i = 0; i < 30 && state.location !== target; i++) state = move(state, 1);
@@ -50,7 +50,7 @@ describe('storm mountain radio station engine', () => {
 
   it('changes revisited station reactions according to trusted and doubted memories', () => {
     const base = initialState();
-    expect(arrivalMessage(base, 'hall')).toContain('최근 기억');
+    expect(arrivalMessage(base, 'hall')).toContain('정문 기록');
     expect(arrivalMessage({ ...base, clueDecisions: { 'storm-note': 'record' }, editorialScore: 1 }, 'hall')).toContain('하윤의 숨');
     expect(arrivalMessage({ ...base, clueDecisions: { 'storm-note': 'delete' }, editorialScore: -1 }, 'hall')).toContain('내 이름');
     expect(arrivalMessage({ ...base, clueDecisions: { 'storm-note': 'record', 'sibling-call': 'delete' }, editorialScore: 0 }, 'hall')).toContain('왼쪽 스피커');
@@ -122,7 +122,7 @@ describe('storm mountain radio station engine', () => {
     const ready = fullInvestigation(['record', 'record', 'record'], false);
     const inBooth = { ...ready, location: 'booth' as Location };
     const wrong = chooseFinalStatement(inBooth, 2);
-    expect(wrong.finalStatement.status).toBe('active'); expect(wrong.message).toContain('뒷받침');
+    expect(wrong.finalStatement.status).toBe('active'); expect(wrong.message).toContain('반박');
     const right = chooseFinalStatement(wrong, 0);
     expect(right.finalStatement.status).toBe('solved');
     expect(chooseFinalStatement(right, 2)).toEqual(right);
@@ -145,8 +145,23 @@ describe('storm mountain radio station engine', () => {
     expect(ready.contradictions).toBe(1);
     const human = chooseEnding(ready, 'human');
     expect(human.ending).toBe('human');
-    expect(human.message).toContain('동시에 비상 주파수로 송출');
+    expect(human.message).toContain('비상망에 송출');
+    expect(human.message).toContain('두 사람을 구조');
     expect(human.message).not.toContain('송신기를 부수고');
+  });
+
+  it('states the fair-play canon and public-broadcast chain in the evidence itself', () => {
+    expect(CLUES.find((clue) => clue.id === 'storm-note')?.text).toContain('최근 기억');
+    expect(ITEM_INFO['station-log'].detail).toContain('정비 통로');
+    expect(CLUES.find((clue) => clue.id === 'sibling-call')?.text).toContain('23:55');
+    expect(CLUES.find((clue) => clue.id === 'false-script')?.text).toContain('23:58');
+    expect(ITEM_INFO['recording-reel'].detail).toContain('숨·비·스튜디오 잔향');
+    expect(ITEM_INFO['frequency-card'].detail).toContain('합성');
+    expect(FINAL_STATEMENTS[0]).toContain('23:40');
+    const publicEnding = chooseEnding(fullInvestigation(['record', 'record', 'delete']), 'human');
+    expect(publicEnding.message).toContain('합성 음성의 절단 파형');
+    expect(publicEnding.message).toContain('산 아래 수신국');
+    expect(publicEnding.message).toContain('두 사람을 구조');
   });
 
   it('reveals the broadcast-created Hayun ending only after doubting all three memories', () => {
@@ -154,7 +169,8 @@ describe('storm mountain radio station engine', () => {
     expect(endingAvailability(allDoubted).illusion).toBe(true);
     const illusion = chooseEnding(allDoubted, 'illusion');
     expect(illusion.ending).toBe('illusion');
-    expect(illusion.message).toContain('빈자리');
+    expect(illusion.message).toContain('실제 흔적');
+    expect(illusion.message).toContain('오인');
     const oneTrusted = fullInvestigation(['delete', 'delete', 'record']);
     expect(endingAvailability(oneTrusted).illusion).toBe(false);
     expect(chooseEnding(oneTrusted, 'illusion').ending).toBeUndefined();
