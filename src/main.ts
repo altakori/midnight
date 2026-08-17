@@ -56,6 +56,40 @@ const ENDING_INFO: Record<Ending, { kicker: string; title: string; summary: stri
   illusion: { kicker: 'ENDING 04 · 없는 목소리', title: '하윤은 방송이 만든 허상이었다', summary: '88.0 MHz는 가장 그리운 목소리와 그 목소리를 잃은 기억까지 만들어 냈다.' },
 };
 const ENDINGS = Object.keys(ENDING_INFO) as Ending[];
+const ENDING_STORY: Record<Ending, { art: string; quote: string; beats: string[] }> = {
+  restore: {
+    art: 'ending-restore.webp',
+    quote: '“이번에는 내가 네 목소리를 놓치지 않을게.”',
+    beats: [
+      '23:58. 마지막 안테나가 불꽃을 토하며 꺾였다. 반복되던 방송이 끊기자, 폭우 사이로 처음 듣는 하윤의 숨소리가 돌아왔다.',
+      '옥상 난간 아래 웅크린 하윤은 사진 속 얼굴보다 지쳐 있었다. 나는 젖은 손을 잡았고, 둘은 어떤 기억이 진짜였는지 묻지 않은 채 중계소를 빠져나왔다.',
+      '00:07. 산길 아래 구조 차량의 불빛이 안개를 갈랐다. 뒤에서 중계소가 완전히 어두워졌지만, 맞잡은 손의 온도만은 지워지지 않았다.',
+    ],
+  },
+  erase: {
+    art: 'ending-erase.webp',
+    quote: '“내가 여기까지 누구를 찾으러 왔더라.”',
+    beats: [
+      '23:59. 마지막 기록을 지우자 송신기는 고요해졌다. 동시에 사진 속 얼굴도 빗물에 번진 잉크처럼 하얗게 사라졌다.',
+      '유리 너머에 누군가 서 있었지만 이름이 떠오르지 않았다. 마이크는 한 번 숨을 들이켠 뒤, 아무 말도 송출하지 않았다.',
+      '새벽 구조대는 혼자 앉아 있는 나를 발견했다. 손에는 빈 사진 한 장뿐이었고, 산을 내려오는 내내 한 자리가 비어 있다는 사실만 설명할 수 없었다.',
+    ],
+  },
+  human: {
+    art: 'ending-human.webp',
+    quote: '“진실이 하나가 아니라면, 둘 다 세상에 남기자.”',
+    beats: [
+      '23:57. 하윤의 테이프와 내 녹음을 서로 다른 두 채널에 걸었다. 청록과 호박 파형이 겹치지 않은 채 같은 88.0 MHz를 탔다.',
+      '한쪽은 하윤이 버려졌다고 말했고, 다른 쪽은 내가 끝까지 곁에 있었다고 증언했다. 우리는 하나를 지워 결론을 만드는 대신 모순 자체를 비상망에 보냈다.',
+      '00:03. 계곡의 수신등이 하나씩 켜지고 구조 차량이 산길로 방향을 틀었다. 중계소는 더 이상 기억을 독점할 수 없었다. 아침은 두 사람의 진술을 모두 가진 채 시작됐다.',
+    ],
+  },
+  illusion: {
+    art: 'hayun-jumpscare.webp',
+    quote: '“오빠, 네가 기억하는 내가 정말 나야?”',
+    beats: [ENDING_INFO.illusion.summary],
+  },
+};
 
 let state = load();
 let detailOpen = false;
@@ -63,6 +97,7 @@ let journalOpen = false;
 let bagOpen = false;
 let paused = false;
 let galleryOpen = false;
+let replayEnding: Ending | null = null;
 let sideNavTutorialOpen = storageGet('local', SIDE_NAV_TUTORIAL_KEY) !== 'seen';
 let selectedItem: ItemId | null = null;
 let jumpScareOpen = false;
@@ -354,8 +389,11 @@ function galleryMarkup(): string {
   const cards = ENDINGS.map((ending) => {
     const info = ENDING_INFO[ending];
     const unlocked = unlockedEndings.has(ending);
-    const art = ending === 'illusion' ? itemArt('sibling-photo') : asset('art/radio/roof.webp');
-    return `<article class="ending-card ${unlocked ? 'unlocked' : 'locked'} ${ending === 'illusion' ? 'haunted' : ''}" style="--ending-art:url('${art}')"><div aria-hidden="true"></div><small>${unlocked ? escapeHtml(info.kicker) : 'ENDING ?? · 잠김'}</small><h3>${unlocked ? escapeHtml(info.title) : '아직 확인하지 않은 결말'}</h3><p>${unlocked ? escapeHtml(info.summary) : '다른 방식으로 기억을 판단하고 옥상에 도달하세요.'}</p></article>`;
+    const art = asset(`art/radio/${ENDING_STORY[ending].art}`);
+    const content = `<div aria-hidden="true"></div><small>${unlocked ? escapeHtml(info.kicker) : 'ENDING ?? · 잠김'}</small><h3>${unlocked ? escapeHtml(info.title) : '아직 확인하지 않은 결말'}</h3><p>${unlocked ? escapeHtml(info.summary) : '다른 방식으로 기억을 판단하고 옥상에 도달하세요.'}</p>${unlocked ? '<em>스토리 다시 보기 →</em>' : ''}`;
+    return unlocked
+      ? `<button type="button" data-replay-ending="${ending}" class="ending-card unlocked ${ending === 'illusion' ? 'haunted' : ''}" style="--ending-art:url('${art}')" aria-label="${escapeHtml(info.title)} 스토리 다시 보기">${content}</button>`
+      : `<article class="ending-card locked ${ending === 'illusion' ? 'haunted' : ''}" style="--ending-art:url('${art}')">${content}</article>`;
   }).join('');
   return `<aside class="screen-overlay ending-gallery" role="dialog" aria-modal="true" aria-labelledby="gallery-title" data-backdrop="gallery"><p class="backdrop-dismiss-hint modal-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p><section><button class="modal-back" data-close-gallery>← 메인으로</button><span>영구 기록 · ${unlockedEndings.size}/${ENDINGS.length}</span><h2 id="gallery-title">엔딩 갤러리</h2><p>진행을 초기화해도 확인한 결말은 이곳에 남습니다.</p><div class="ending-grid">${cards}</div></section></aside>`;
 }
@@ -383,10 +421,14 @@ function memoryChoiceMarkup(): string {
   return `<aside class="screen-overlay memory-choice" role="dialog" aria-modal="true" aria-labelledby="memory-title"><section><span>찾은 기억 · 이 판단은 마지막 선택을 바꾼다</span><h2 id="memory-title">${escapeHtml(clue.title)}</h2><p>${escapeHtml(clue.text)}</p><button data-memory="record">믿는다 · 이 기억으로 하윤을 찾는다</button><button data-memory="delete">의심한다 · 방송이 만든 기억으로 본다</button><button data-cancel-memory>지금은 결정하지 않는다</button></section></aside>`;
 }
 function endingMarkup(): string {
-  if (!state.ending) return '';
-  const info = ENDING_INFO[state.ending];
-  const art = state.ending === 'illusion' ? itemArt('sibling-photo') : asset(`art/radio/${state.ending === 'erase' ? 'booth' : state.ending === 'human' ? 'transmitter' : 'roof'}.webp`);
-  return `<section class="ending-screen ending-${state.ending}" style="background-image:linear-gradient(#02080ccc,#02080cee),url('${art}')"><div><small>${escapeHtml(info.kicker)}</small><h2>${escapeHtml(info.title)}</h2><p>${escapeHtml(state.message)}</p><b>${escapeHtml(info.summary)}</b><div class="ending-actions"><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-reset>처음부터 다시 하기</button></div></div></section>`;
+  const ending = replayEnding ?? state.ending;
+  if (!ending) return '';
+  const info = ENDING_INFO[ending];
+  const story = ENDING_STORY[ending];
+  const art = asset(`art/radio/${story.art}`);
+  const beats = story.beats.map((beat, index) => `<p class="ending-beat" style="--beat:${index}">${escapeHtml(beat)}</p>`).join('');
+  const primaryAction = replayEnding ? '<button data-return-gallery>← 엔딩 갤러리로</button>' : `<button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button>`;
+  return `<section class="ending-screen ending-${ending}" style="--ending-hero:url('${art}')"><div class="ending-hero" role="img" aria-label="${escapeHtml(info.title)} 엔딩 장면"></div><div class="ending-grade" aria-hidden="true"></div><article><small>${escapeHtml(info.kicker)}</small><h2>${escapeHtml(info.title)}</h2><blockquote>${escapeHtml(story.quote)}</blockquote><div class="ending-story">${beats}</div><b>${escapeHtml(info.summary)}</b><div class="ending-actions">${primaryAction}<button data-reset>처음부터 다시 하기</button></div></article></section>`;
 }
 function introMarkup(): string {
   return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폭풍 속 해월 제7중계소</span><h2>자정까지 30분.<br>옥상의 하윤을 구하라.</h2><p class="intro-call">“오빠, 방송을 믿지 마. <b>88.0</b>을 찾아.”</p><p>전화가 끊겼다. 자정이 되면 방송은 하윤의 위치와 당신의 기억을 모두 지운다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>마지막 다섯 번째 퍼즐에서 거짓 방송을 판별하고 옥상으로 올라간다.</li></ol><small class="playtime-note">실시간 제한은 없습니다. 탐색 속도는 결말에 영향을 주지 않습니다.</small><small class="horror-note">공포 화면과 짧은 비명·음향 연출이 포함됩니다.</small><div class="intro-actions"><button data-start>구조 신호 찾기</button><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button></div></section></aside>`;
@@ -397,7 +439,7 @@ function render(): void {
   const placeNumber = LOCATION_ORDER.indexOf(state.location) + 1;
   const openLocationIndex = openLocations.indexOf(state.location);
   app.innerHTML = `<main class="game ${signalMood()} ${paused ? 'paused' : ''} ${detailOpen ? 'is-detail' : ''} ${state.ending ? 'has-ending' : ''}">
-    <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="퍼즐 ${puzzleSolved()}/5 완료">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>기억 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-gallery>엔딩 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-audio aria-pressed="${stationSoundscape.isEnabled()}" aria-label="환경 음향 ${stationSoundscape.isEnabled() ? '켜짐' : '꺼짐'}. 눌러서 전환" title="방송국 환경 음향 켜기 또는 끄기">음향 ${stationSoundscape.isEnabled() ? '●' : '○'}</button><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
+    <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="퍼즐 ${puzzleSolved()}/5 완료">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>기억 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-gallery>엔딩 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-audio aria-pressed="${stationSoundscape.isEnabled()}" aria-label="전체 음향 ${stationSoundscape.isEnabled() ? '켜짐' : '꺼짐'}. 눌러서 전환" title="전체 음향 켜기 또는 끄기">전체 ${stationSoundscape.isEnabled() ? '●' : '○'}</button><label class="music-volume" title="배경 음악 음량"><span>BGM <output data-music-value>${stationSoundscape.getMusicVolume()}</output></span><input data-music-volume type="range" min="0" max="100" step="1" value="${stationSoundscape.getMusicVolume()}" aria-label="배경 음악 음량 ${stationSoundscape.getMusicVolume()}%"></label><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
     <section class="viewport" aria-label="${escapeHtml(location.title)}"><div class="place"><small>장소 ${String(placeNumber).padStart(2, '0')} · ${openLocations.length}/10 열림</small><h2>${escapeHtml(location.title)}</h2><p>${escapeHtml(location.subtitle)}</p></div>${sceneMarkup()}
       ${!detailOpen ? `<button class="turn left" data-turn="-1" aria-label="${openLocationIndex > 0 ? '이전 장소' : '이전 장소 없음'}" ${openLocationIndex > 0 ? '' : 'disabled'}>‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="${openLocationIndex < openLocations.length - 1 ? '다음 장소' : '다음 장소 없음'}" ${openLocationIndex < openLocations.length - 1 ? '' : 'disabled'}>›<span>다음</span></button>` : ''}
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
@@ -406,8 +448,8 @@ function render(): void {
     ${collectibleRevealMarkup()}${rewardMarkup()}${journalOpen ? journalMarkup() : ''}${state.pendingClue ? memoryChoiceMarkup() : ''}${introOpen ? introMarkup() : ''}${paused ? '<aside class="pause-card"><span>조사 멈춤</span><button data-pause>계속하기</button><button data-reset>진행 초기화</button></aside>' : ''}${endingMarkup()}${itemDetailMarkup()}${galleryMarkup()}${jumpScareMarkup()}
   </main>`;
   bind();
-  stationSoundscape.sync(state.location, state.tension, paused || introOpen || jumpScareOpen || Boolean(state.ending));
-  const modalFocusTarget = jumpScareOpen ? '.jump-scare' : selectedItem ? '[data-close-item]' : galleryOpen ? '[data-close-gallery]' : state.pendingClue ? '[data-memory]' : introOpen ? '[data-start]' : journalOpen ? '[data-journal].overlay-close' : paused ? '.pause-card [data-pause]' : state.ending ? '[data-gallery]' : detailOpen ? '[data-close-detail]' : '';
+  stationSoundscape.sync(state.location, state.tension, paused || introOpen || jumpScareOpen || Boolean(state.ending) || Boolean(replayEnding));
+  const modalFocusTarget = jumpScareOpen ? '.jump-scare' : selectedItem ? '[data-close-item]' : galleryOpen ? '[data-close-gallery]' : state.pendingClue ? '[data-memory]' : introOpen ? '[data-start]' : journalOpen ? '[data-journal].overlay-close' : paused ? '.pause-card [data-pause]' : replayEnding ? '[data-return-gallery]' : state.ending ? '[data-gallery]' : detailOpen ? '[data-close-detail]' : '';
   const focusTarget = modalFocusTarget || restoreFocusSelector;
   if (focusTarget) document.querySelector<HTMLElement>(focusTarget)?.focus();
   if (!modalFocusTarget) restoreFocusSelector = '';
@@ -460,7 +502,7 @@ function showReward(stage: number): void {
   const titles = ['목소리 신호 포착', '비상 전력 복구', '사건 순서 복원', '숨은 통로 개방', '거짓 방송 제거'];
   dismissReward();
   rewardBeat = { kicker: `옥상 신호 복구 ${stage}/5`, title: titles[stage - 1] ?? '경로 개방', text: state.message, major: true };
-  stationSoundscape.cue('solve');
+  stationSoundscape.solve(stage);
   rewardTimer = window.setTimeout(() => { rewardBeat = null; rewardTimer = undefined; render(); }, 3300);
 }
 function resetGame(): void {
@@ -469,10 +511,11 @@ function resetGame(): void {
   storageRemove('local', SAVE_KEY);
   for (const key of LEGACY_KEYS) storageRemove('local', key);
   if (scareTimer) window.clearTimeout(scareTimer);
-  state = initialState(); detailOpen = false; journalOpen = false; bagOpen = false; paused = false; galleryOpen = false; selectedItem = null; jumpScareOpen = false; introOpen = true; puzzleDraft = []; render();
+  state = initialState(); detailOpen = false; journalOpen = false; bagOpen = false; paused = false; galleryOpen = false; replayEnding = null; selectedItem = null; jumpScareOpen = false; introOpen = true; puzzleDraft = []; render();
 }
 function closeItemDetail(): void { selectedItem = null; render(); }
 function closeGallery(): void { galleryOpen = false; render(); }
+function returnToGallery(): void { replayEnding = null; galleryOpen = true; render(); }
 function closeJumpScare(): void {
   jumpScareOpen = false;
   stopJumpScareSound();
@@ -510,11 +553,12 @@ function bind(): void {
     const id = button.dataset.inspectItem as ItemId;
     dismissReveal(); restoreFocusSelector = `[data-inspect-item="${id}"]`; selectedItem = id; state = inspect(state, id); save(); render();
   });
-  document.querySelectorAll<HTMLElement>('[data-puzzle-value]').forEach((button) => button.onclick = () => { const value = button.dataset.puzzleValue!; if (!puzzleDraft.includes(value)) puzzleDraft.push(value); render(); });
-  document.querySelectorAll<HTMLElement>('[data-puzzle-remove]').forEach((button) => button.onclick = () => { puzzleDraft.splice(Number(button.dataset.puzzleRemove), 1); render(); });
+  document.querySelectorAll<HTMLElement>('[data-puzzle-value]').forEach((button) => button.onclick = () => { stationSoundscape.control('tape'); const value = button.dataset.puzzleValue!; if (!puzzleDraft.includes(value)) puzzleDraft.push(value); render(); });
+  document.querySelectorAll<HTMLElement>('[data-puzzle-remove]').forEach((button) => button.onclick = () => { stationSoundscape.control('tape'); puzzleDraft.splice(Number(button.dataset.puzzleRemove), 1); render(); });
   document.querySelector<HTMLInputElement>('[data-frequency-range]')?.addEventListener('input', (event) => {
     const input = event.currentTarget as HTMLInputElement; puzzleDraft = [input.value];
     const value = Number(input.value); const strength = Math.max(0, 100 - Math.abs(88 - value) * 25);
+    stationSoundscape.frequencyStep(value);
     const panel = input.closest<HTMLElement>('.frequency-console');
     const output = panel?.querySelector<HTMLOutputElement>('[data-frequency-output]'); if (output) output.value = `${value.toFixed(1)} MHz`;
     const voice = panel?.querySelector<HTMLElement>('[data-frequency-voice]'); if (voice) voice.textContent = strength >= 95 ? '“오빠… 옥상… 들려?”' : strength >= 55 ? '“…빠… 옥… 들…”' : '치지직— 신호 없음';
@@ -522,10 +566,11 @@ function bind(): void {
     const submit = panel?.querySelector<HTMLButtonElement>('[data-puzzle-submit]'); if (submit) submit.disabled = value !== 88;
   });
   document.querySelectorAll<HTMLButtonElement>('[data-breaker]').forEach((button) => button.onclick = () => {
-    const value = button.dataset.breaker!; puzzleDraft = puzzleDraft.includes(value) ? puzzleDraft.filter((entry) => entry !== value) : [...puzzleDraft, value]; render();
+    stationSoundscape.control('switch'); const value = button.dataset.breaker!; puzzleDraft = puzzleDraft.includes(value) ? puzzleDraft.filter((entry) => entry !== value) : [...puzzleDraft, value]; render();
   });
   document.querySelectorAll<HTMLInputElement>('[data-light-index]').forEach((input) => input.addEventListener('input', (event) => {
     const slider = event.currentTarget as HTMLInputElement; const index = Number(slider.dataset.lightIndex);
+    stationSoundscape.control('slider');
     puzzleDraft = [0,1,2].map((position) => position === index ? slider.value : puzzleDraft[position] ?? '0');
     const panel = slider.closest<HTMLElement>('.light-console'); const keys = ['cyan','amber','red'];
     panel?.style.setProperty(`--${keys[index]}-level`, slider.value);
@@ -562,7 +607,16 @@ function bind(): void {
   document.querySelector<HTMLElement>('[data-audio]')?.addEventListener('click', () => {
     void stationSoundscape.toggle().then((enabled) => { if (!enabled) stopJumpScareSound(); render(); }).catch(render);
   });
+  document.querySelector<HTMLInputElement>('[data-music-volume]')?.addEventListener('input', (event) => {
+    const input = event.currentTarget as HTMLInputElement;
+    stationSoundscape.setMusicVolume(Number(input.value));
+    const output = input.closest('label')?.querySelector<HTMLOutputElement>('[data-music-value]');
+    if (output) output.value = input.value;
+    input.setAttribute('aria-label', `배경 음악 음량 ${input.value}%`);
+  });
   document.querySelectorAll<HTMLElement>('[data-gallery]').forEach((button) => button.onclick = () => { if (!galleryOpen) restoreFocusSelector = '[data-gallery]'; galleryOpen = !galleryOpen; render(); });
+  document.querySelectorAll<HTMLElement>('[data-replay-ending]').forEach((button) => button.onclick = () => { replayEnding = button.dataset.replayEnding as Ending; galleryOpen = false; render(); });
+  document.querySelector<HTMLElement>('[data-return-gallery]')?.addEventListener('click', returnToGallery);
   document.querySelector<HTMLElement>('[data-close-gallery]')?.addEventListener('click', closeGallery);
   document.querySelector<HTMLElement>('[data-close-item]')?.addEventListener('click', closeItemDetail);
   document.querySelectorAll<HTMLElement>('[data-backdrop]').forEach((backdrop) => backdrop.onclick = (event) => {
@@ -577,6 +631,7 @@ window.addEventListener('keydown', (event) => {
   if (jumpScareOpen) { if (event.key === 'Escape') closeJumpScare(); return; }
   if (selectedItem) { if (event.key === 'Escape') closeItemDetail(); return; }
   if (galleryOpen) { if (event.key === 'Escape') closeGallery(); return; }
+  if (replayEnding) { if (event.key === 'Escape') returnToGallery(); return; }
   if (state.pendingClue) { if (event.key === 'Escape') commit(cancelPendingClue(state), true); return; }
   if (introOpen) { if (event.key === 'Escape') { restoreFocusSelector = '[data-open-detail]'; introOpen = false; storageSet('session', 'midnight-frequency-intro-seen', '1'); render(); } return; }
   if (journalOpen) { if (event.key === 'Escape') { journalOpen = false; render(); } return; }
