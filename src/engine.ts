@@ -206,6 +206,6 @@ export function endingAvailability(state: GameState): EndingAvailability {
 export function chooseEnding(state: GameState, ending: Ending): GameState {
   if (state.location !== 'roof' || state.finalStatement.status !== 'solved' || !state.inventory.includes('roof-key')) return fail(state, '거짓 방송을 밝혀내고 지붕 열쇠를 찾아야 한다.');
   if (!endingAvailability(state)[ending]) return fail(state, '지금까지 기억을 다룬 방식으로는 그 결말을 선택할 수 없다.');
-  const message = ending === 'restore' ? '믿고 남긴 기억으로 동생의 이름을 되찾고 방송을 끊었다.' : ending === 'erase' ? '의심한 기록을 모두 지웠지만, 동생을 찾은 기억도 함께 사라졌다.' : ending === 'human' ? '믿음과 의심을 모두 받아들이고 동생과 기억을 맞춰 보았다.' : '난간 끝의 하윤이 내 목소리로 웃었다. 방송은 잃어버린 동생이 아니라, 동생을 잃었다는 빈자리까지 만들어 냈다.';
+  const message = ending === 'restore' ? '하윤의 기억을 사실로 받아들였다. 송신기를 부수고 자정 전에 하윤을 데리고 산을 내려왔다.' : ending === 'erase' ? '의심한 기록을 모두 지웠지만, 동생을 찾은 기억도 함께 사라졌다.' : ending === 'human' ? '어느 기억도 하나의 진실로 고치지 않았다. 하윤과 내 상충하는 녹음을 동시에 비상 주파수로 송출해 중계소의 거짓을 세상에 남겼다.' : '난간 끝의 하윤이 내 목소리로 웃었다. 방송은 잃어버린 동생이 아니라, 동생을 잃었다는 빈자리까지 만들어 냈다.';
   return patch(state, { ending, message, tension: ending === 'erase' || ending === 'illusion' ? 100 : ending === 'restore' ? 0 : 50 });
 }

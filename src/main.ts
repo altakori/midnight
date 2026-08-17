@@ -50,9 +50,9 @@ function storageRemove(kind: StorageKind, key: string): void {
 }
 
 const ENDING_INFO: Record<Ending, { kicker: string; title: string; summary: string }> = {
-  restore: { kicker: 'ENDING 01 · 구조', title: '자정 전에 하윤을 찾았다', summary: '믿고 남긴 기억으로 송신기를 끄고 하윤과 산을 내려갔다.' },
+  restore: { kicker: 'ENDING 01 · 구조', title: '자정 전에 하윤을 데리고 내려왔다', summary: '하윤의 기억을 사실로 받아들여 송신기를 파괴하고 즉시 산을 떠났다. 방송국의 기록은 폭우 속에 남았다.' },
   erase: { kicker: 'ENDING 02 · 잃은 기억', title: '방송은 멈췄지만 하윤을 잊었다', summary: '모든 기록을 지운 대가로 이곳에 온 이유까지 사라졌다.' },
-  human: { kicker: 'ENDING 03 · 귀환', title: '서로 다른 기억을 맞춰 보았다', summary: '믿음과 의심을 함께 품고 하윤과 폭우 속을 빠져나왔다.' },
+  human: { kicker: 'ENDING 03 · 공개 방송', title: '두 개의 기억을 세상에 남겼다', summary: '송신기를 끄지 않고 상충하는 두 증언을 새벽 비상망에 송출했다. 구조대는 두 사람과 중계소의 기록을 함께 발견했다.' },
   illusion: { kicker: 'ENDING 04 · 없는 목소리', title: '하윤은 방송이 만든 허상이었다', summary: '88.0 MHz는 가장 그리운 목소리와 그 목소리를 잃은 기억까지 만들어 냈다.' },
 };
 const ENDINGS = Object.keys(ENDING_INFO) as Ending[];
@@ -140,9 +140,14 @@ function unlockEnding(ending: Ending): void {
   storageSet('local', GALLERY_KEY, JSON.stringify([...unlockedEndings]));
 }
 function playJumpScareSound(): void {
+  if (!stationSoundscape.isEnabled()) return;
   jumpScareAudio.pause();
   jumpScareAudio.currentTime = .085;
   void jumpScareAudio.play().catch(() => { /* The ending remains readable if playback is blocked. */ });
+}
+function stopJumpScareSound(): void {
+  jumpScareAudio.pause();
+  jumpScareAudio.currentTime = .085;
 }
 function enterJumpScareFullscreen(): void {
   if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -328,7 +333,7 @@ function endingChoicesMarkup(): string {
   const choices = endingAvailability(state);
   const recap = storyRecapMarkup();
   if (choices.resolved < 2) return `<section class="puzzle-panel final-choice locked"><span>마지막 선택</span><h3>아직 어떤 기억을 믿을지 정하지 못했다</h3><p>방송국에서 찾은 기억을 두 개 이상 확인한 뒤 돌아오자.</p>${recap}</section>`;
-  return `<section class="puzzle-panel final-choice"><span>마지막 선택 · 지금까지의 행동이 남긴 선택지</span><h3>난간 끝의 목소리를 어떻게 받아들일까?</h3>${recap}<button data-ending="restore" ${choices.restore ? '' : 'disabled'}>하윤의 기억을 믿고 송신기를 끈다${choices.restore ? '' : ' · 잠김: 기억을 2개 이상 믿어야 함'}</button><button data-ending="erase" ${choices.erase ? '' : 'disabled'}>모든 기록을 의심하고 지운다${choices.erase ? '' : ' · 잠김: 기억을 2개 이상 의심해야 함'}</button><button data-ending="human" ${choices.human ? '' : 'disabled'}>서로 다른 기억을 맞춰 보고 함께 내려간다${choices.human ? '' : ' · 잠김: 믿은 기억과 의심한 기억이 모두 필요함'}</button><button class="illusion-choice" data-ending="illusion" ${choices.illusion ? '' : 'disabled'}>88.0 MHz의 목소리가 어디서 왔는지 확인한다${choices.illusion ? '' : ' · 잠김: 세 기억을 모두 의심해야 함'}</button></section>`;
+  return `<section class="puzzle-panel final-choice"><span>마지막 선택 · 지금까지의 행동이 남긴 선택지</span><h3>난간 끝의 목소리를 어떻게 받아들일까?</h3>${recap}<button data-ending="restore" ${choices.restore ? '' : 'disabled'}>하윤의 기억을 믿고 송신기를 부순 뒤 함께 탈출한다${choices.restore ? '' : ' · 잠김: 기억을 2개 이상 믿어야 함'}</button><button data-ending="erase" ${choices.erase ? '' : 'disabled'}>모든 기록을 의심하고 지운다${choices.erase ? '' : ' · 잠김: 기억을 2개 이상 의심해야 함'}</button><button data-ending="human" ${choices.human ? '' : 'disabled'}>상충하는 두 기억을 함께 송출해 중계소를 폭로한다${choices.human ? '' : ' · 잠김: 믿은 기억과 의심한 기억이 모두 필요함'}</button><button class="illusion-choice" data-ending="illusion" ${choices.illusion ? '' : 'disabled'}>88.0 MHz의 목소리가 어디서 왔는지 확인한다${choices.illusion ? '' : ' · 잠김: 세 기억을 모두 의심해야 함'}</button></section>`;
 }
 function toolBelt(): string {
   const tools = state.inventory.filter((id): id is ItemId => Boolean(ITEM_INFO[id]));
@@ -380,7 +385,7 @@ function memoryChoiceMarkup(): string {
 function endingMarkup(): string {
   if (!state.ending) return '';
   const info = ENDING_INFO[state.ending];
-  const art = state.ending === 'illusion' ? itemArt('sibling-photo') : asset('art/radio/roof.webp');
+  const art = state.ending === 'illusion' ? itemArt('sibling-photo') : asset(`art/radio/${state.ending === 'erase' ? 'booth' : state.ending === 'human' ? 'transmitter' : 'roof'}.webp`);
   return `<section class="ending-screen ending-${state.ending}" style="background-image:linear-gradient(#02080ccc,#02080cee),url('${art}')"><div><small>${escapeHtml(info.kicker)}</small><h2>${escapeHtml(info.title)}</h2><p>${escapeHtml(state.message)}</p><b>${escapeHtml(info.summary)}</b><div class="ending-actions"><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-reset>처음부터 다시 하기</button></div></div></section>`;
 }
 function introMarkup(): string {
@@ -433,6 +438,7 @@ function attemptCurrentPuzzle(): void {
   else if (state.location === 'archive') next = arrangeRecordings(state, puzzleDraft);
   else if (state.location === 'studio') next = selectFlashlightFilter(state, puzzleDraft);
   const currentPuzzle = state.location === 'transmitter' ? next.frequency : state.location === 'power' ? next.breaker : state.location === 'archive' ? next.recordings : next.flashlight;
+  if (currentPuzzle.status !== 'solved') stationSoundscape.cue('error');
   commit(next, currentPuzzle.status !== 'solved');
 }
 function dismissReveal(): void {
@@ -469,6 +475,7 @@ function closeItemDetail(): void { selectedItem = null; render(); }
 function closeGallery(): void { galleryOpen = false; render(); }
 function closeJumpScare(): void {
   jumpScareOpen = false;
+  stopJumpScareSound();
   if (scareTimer) window.clearTimeout(scareTimer);
   scareTimer = undefined;
   leaveJumpScareFullscreen();
@@ -532,6 +539,7 @@ function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-statement]').forEach((button) => button.onclick = () => commit(chooseFinalStatement(state, Number(button.dataset.statement)), true));
   document.querySelectorAll<HTMLElement>('[data-ending]').forEach((button) => button.onclick = () => {
     const next = chooseEnding(state, button.dataset.ending as Ending);
+    if (next.ending && next.ending !== state.ending && next.ending !== 'illusion') stationSoundscape.cue(next.ending === 'human' ? 'choice' : 'solve');
     if (next.ending === 'illusion' && state.ending !== 'illusion') {
       enterJumpScareFullscreen(); playJumpScareSound(); jumpScareOpen = true;
       if (scareTimer) window.clearTimeout(scareTimer);
@@ -551,7 +559,9 @@ function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-bag]').forEach((button) => button.onclick = () => { dismissReveal(); if (bagOpen) closeBag(); else { bagOpen = true; restoreFocusSelector = '.bag-head [data-bag]'; render(); } });
   document.querySelector<HTMLElement>('[data-close-bag]')?.addEventListener('click', closeBag);
   document.querySelectorAll<HTMLElement>('[data-pause]').forEach((button) => button.onclick = () => { dismissReveal(); if (!paused) restoreFocusSelector = 'header [data-pause]'; paused = !paused; render(); });
-  document.querySelector<HTMLElement>('[data-audio]')?.addEventListener('click', () => { void stationSoundscape.toggle().then(render).catch(render); });
+  document.querySelector<HTMLElement>('[data-audio]')?.addEventListener('click', () => {
+    void stationSoundscape.toggle().then((enabled) => { if (!enabled) stopJumpScareSound(); render(); }).catch(render);
+  });
   document.querySelectorAll<HTMLElement>('[data-gallery]').forEach((button) => button.onclick = () => { if (!galleryOpen) restoreFocusSelector = '[data-gallery]'; galleryOpen = !galleryOpen; render(); });
   document.querySelector<HTMLElement>('[data-close-gallery]')?.addEventListener('click', closeGallery);
   document.querySelector<HTMLElement>('[data-close-item]')?.addEventListener('click', closeItemDetail);

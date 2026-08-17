@@ -145,7 +145,8 @@ describe('storm mountain radio station engine', () => {
     expect(ready.contradictions).toBe(1);
     const human = chooseEnding(ready, 'human');
     expect(human.ending).toBe('human');
-    expect(human.message).toContain('동생');
+    expect(human.message).toContain('동시에 비상 주파수로 송출');
+    expect(human.message).not.toContain('송신기를 부수고');
   });
 
   it('reveals the broadcast-created Hayun ending only after doubting all three memories', () => {
