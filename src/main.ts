@@ -138,12 +138,32 @@ function fullscreenActive(): boolean { return Boolean(document.fullscreenElement
 function phoneLayoutActive(): boolean {
   return window.matchMedia('(max-width:760px), (max-width:980px) and (max-height:520px)').matches;
 }
+function refreshOrientationUi(): void {
+  const active = fullscreenActive();
+  document.querySelectorAll<HTMLElement>('[data-landscape]').forEach((button) => {
+    button.textContent = active ? '창모드' : '가로 전체';
+    button.setAttribute('aria-label', active ? '전체화면 종료' : '가로 전체화면 전환');
+  });
+  document.querySelector('.rotation-prompt')?.remove();
+  let notice = document.querySelector<HTMLElement>('.orientation-notice');
+  if (!orientationNotice || phoneLayoutActive()) {
+    notice?.remove();
+    return;
+  }
+  if (!notice) {
+    notice = document.createElement('p');
+    notice.className = 'orientation-notice';
+    notice.setAttribute('role', 'status');
+    document.querySelector('.game')?.append(notice);
+  }
+  notice.textContent = orientationNotice;
+}
 async function toggleLandscapeMode(): Promise<void> {
   if (fullscreenActive()) {
     try { (screen.orientation as LockableOrientation).unlock?.(); } catch { /* Unlock support varies. */ }
     await document.exitFullscreen().catch(() => { /* The browser may already have exited. */ });
     orientationNotice = '전체화면을 종료했습니다.';
-    render();
+    refreshOrientationUi();
     return;
   }
   try {
@@ -160,7 +180,7 @@ async function toggleLandscapeMode(): Promise<void> {
   }
   rotationPromptDismissed = true;
   storageSet('session', 'midnight-frequency-rotation-dismissed', '1');
-  render();
+  refreshOrientationUi();
 }
 function rotationPromptMarkup(): string {
   if (rotationPromptDismissed) return '';
@@ -170,7 +190,7 @@ const phoneLandscapeQuery = window.matchMedia('(max-width:980px) and (orientatio
 phoneLandscapeQuery.addEventListener('change', (event) => {
   if (!event.matches || !orientationNotice) return;
   orientationNotice = '';
-  render();
+  document.querySelector('.orientation-notice')?.remove();
 });
 
 const PUZZLE_META = {
@@ -723,6 +743,6 @@ document.addEventListener('fullscreenchange', () => {
   if (!fullscreenActive()) {
     try { (screen.orientation as LockableOrientation).unlock?.(); } catch { /* Unlock support varies. */ }
   }
-  render();
+  refreshOrientationUi();
 });
 render();

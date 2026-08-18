@@ -645,6 +645,37 @@ OpenAI Game Builders Seoul 2026 제출용 제작 과정 기록이다. 폐기한 
 - QA 후 RAM: 사용 11.56 GB, 가용 3.99 GB, 74.4%
 - 시스템 기준 회수량: 약 0.10 GB
 
+## 34. 이동 버튼 경계와 모바일 화면 유지 안정성
+
+### 이동 버튼
+
+- `.turn`을 anonymous text node가 별도 grid 셀로 밀리는 구조에서 세로 flex 구조로 변경했다.
+- 화살표·라벨을 중앙 정렬하고 `line-height`, gap, 아래 padding을 명시했으며 `overflow:hidden`으로 상자 밖 렌더를 차단했다.
+- 390×844, 740×360, 1440×731에서 좌우 두 버튼의 화살표·라벨 rect가 모두 button rect 안에 있음을 좌표로 확인했다.
+
+### 가로 토스트
+
+- 폰 획득 토스트의 미디어 조건을 세로 `max-width:760px`뿐 아니라 `max-width:980px`, landscape, `max-height:520px`에도 적용했다.
+- 844×390에서 토스트는 약 107×26px, 화면 폭의 12.7%이며 장면 왼쪽 위에 표시돼 오른쪽 절반을 가리지 않았다.
+
+### 화면 유지
+
+- 가로 전체화면 진입·종료와 `fullscreenchange`는 `render()`를 호출하지 않고 `refreshOrientationUi()`로 관련 버튼·상태 DOM만 갱신한다.
+- 수동 회전 시 실패 안내 제거도 전체 렌더 대신 해당 상태 노드만 제거한다.
+- 가까이 보기에서 390×844 ↔ 844×390을 6회 반복했을 때 `.game` DOM identity, `is-detail`, navigation entry 1, pagehide/beforeunload 0을 유지했다.
+- 합성 `fullscreenchange`에서도 동일 DOM과 조사 상태를 유지했다.
+- 엔딩 갤러리에서 세로·가로를 4회 반복했을 때 같은 `.game` DOM, 갤러리 open, 카드 4개, scrollTop 0, page event 0을 유지했다.
+
+### 프로세스·RAM 정리
+
+- QA 전 RAM: 사용 11.32 GB, 가용 4.22 GB, 72.9%
+- 기존 메인 `5174` 재사용, 임시 Vite 없음
+- QA 세션: `proc_ffbb2f09bc19`, CDP `9223`, 프로필 `mobile-stability-cdp`
+- 프로세스 트리: 13개, Working Set 합계 739.0 MB
+- QA 후 세션 종료, Chrome orphan 없음, `9223` 해제, 프로필 삭제
+- QA 후 RAM: 사용 11.33 GB, 가용 4.22 GB, 72.9%
+- 다른 시스템 활동과 반올림 범위에서 전체 RAM은 동일했으며 에이전트 소유 프로세스·포트·프로필 잔존은 0이다.
+
 ## 협업 및 검증 원칙
 
 - 보조 에이전트의 완료 보고는 직접 파일·브라우저 검증 전까지 잠정 결과로 취급한다.
