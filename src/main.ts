@@ -117,6 +117,18 @@ const jumpScareAudio = new Audio(asset('audio/hayun-jumpscare.mp3'));
 jumpScareAudio.preload = 'auto';
 jumpScareAudio.volume = .95;
 jumpScareAudio.load();
+const imagePreloads = [
+  ...(Object.keys(ITEM_INFO) as ItemId[]).map((id) => itemArt(id)),
+  ...ENDINGS.map((ending) => asset(`art/radio/${ENDING_STORY[ending].art}`)),
+].map((src) => {
+  const image = new Image();
+  image.decoding = 'async';
+  image.fetchPriority = 'high';
+  image.src = src;
+  void image.decode().catch(() => { /* Normal image loading remains the fallback. */ });
+  return image;
+});
+void imagePreloads;
 function primeSoundscape(): void { void stationSoundscape.start().catch(() => { /* Visual play remains complete if Web Audio is unavailable. */ }); }
 window.addEventListener('pointerdown', primeSoundscape, { once: true, capture: true });
 window.addEventListener('keydown', primeSoundscape, { once: true, capture: true });
@@ -432,10 +444,10 @@ function galleryMarkup(): string {
     const info = ENDING_INFO[ending];
     const unlocked = unlockedEndings.has(ending);
     const art = asset(`art/radio/${ENDING_STORY[ending].art}`);
-    const content = `<div aria-hidden="true"></div><small>${unlocked ? escapeHtml(info.kicker) : 'ENDING ?? · 잠김'}</small><h3>${unlocked ? escapeHtml(info.title) : '아직 확인하지 않은 결말'}</h3><p>${unlocked ? escapeHtml(info.summary) : '다른 방식으로 기억을 판단하고 옥상에 도달하세요.'}</p>${unlocked ? '<em>스토리 다시 보기 →</em>' : ''}`;
+    const content = `<div aria-hidden="true"><img src="${art}" alt="" draggable="false"></div><small>${unlocked ? escapeHtml(info.kicker) : 'ENDING ?? · 잠김'}</small><h3>${unlocked ? escapeHtml(info.title) : '아직 확인하지 않은 결말'}</h3><p>${unlocked ? escapeHtml(info.summary) : '다른 방식으로 기억을 판단하고 옥상에 도달하세요.'}</p>${unlocked ? '<em>스토리 다시 보기 →</em>' : ''}`;
     return unlocked
-      ? `<button type="button" data-replay-ending="${ending}" class="ending-card unlocked ${ending === 'illusion' ? 'haunted' : ''}" style="--ending-art:url('${art}')" aria-label="${escapeHtml(info.title)} 스토리 다시 보기">${content}</button>`
-      : `<article class="ending-card locked ${ending === 'illusion' ? 'haunted' : ''}" style="--ending-art:url('${art}')">${content}</article>`;
+      ? `<button type="button" data-replay-ending="${ending}" class="ending-card unlocked ${ending === 'illusion' ? 'haunted' : ''}" aria-label="${escapeHtml(info.title)} 스토리 다시 보기">${content}</button>`
+      : `<article class="ending-card locked ${ending === 'illusion' ? 'haunted' : ''}">${content}</article>`;
   }).join('');
   return `<aside class="screen-overlay ending-gallery" role="dialog" aria-modal="true" aria-labelledby="gallery-title" data-backdrop="gallery"><p class="backdrop-dismiss-hint modal-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p><section><button class="modal-back" data-close-gallery>← 메인으로</button><span>영구 기록 · ${unlockedEndings.size}/${ENDINGS.length}</span><h2 id="gallery-title">엔딩 갤러리</h2><p>진행을 초기화해도 확인한 결말은 이곳에 남습니다.</p><div class="ending-grid">${cards}</div></section></aside>`;
 }
@@ -514,6 +526,12 @@ function trapModalFocus(event: KeyboardEvent): boolean {
   else return false;
   event.preventDefault();
   return true;
+}
+function renderWithPuzzleScroll(): void {
+  const scrollTop = document.querySelector<HTMLElement>('.puzzle-panel')?.scrollTop ?? 0;
+  render();
+  const panel = document.querySelector<HTMLElement>('.puzzle-panel');
+  if (panel) panel.scrollTop = scrollTop;
 }
 function attemptCurrentPuzzle(): void {
   let next = state;
@@ -601,8 +619,13 @@ function bind(): void {
     dismissReveal();
     render();
   });
-  document.querySelectorAll<HTMLElement>('[data-puzzle-value]').forEach((button) => button.onclick = () => { stationSoundscape.control('tape'); const value = button.dataset.puzzleValue!; if (!puzzleDraft.includes(value)) puzzleDraft.push(value); render(); });
-  document.querySelectorAll<HTMLElement>('[data-puzzle-remove]').forEach((button) => button.onclick = () => { stationSoundscape.control('tape'); puzzleDraft.splice(Number(button.dataset.puzzleRemove), 1); render(); });
+  const phoneReveal = document.querySelector<HTMLElement>('[data-dismiss-reveal]');
+  if (phoneReveal && phoneLayoutActive()) {
+    const viewportTop = document.querySelector<HTMLElement>('.viewport')?.getBoundingClientRect().top ?? 0;
+    phoneReveal.style.top = `${Math.max(6, Math.round(viewportTop + 6))}px`;
+  }
+  document.querySelectorAll<HTMLElement>('[data-puzzle-value]').forEach((button) => button.onclick = () => { stationSoundscape.control('tape'); const value = button.dataset.puzzleValue!; if (!puzzleDraft.includes(value)) puzzleDraft.push(value); renderWithPuzzleScroll(); });
+  document.querySelectorAll<HTMLElement>('[data-puzzle-remove]').forEach((button) => button.onclick = () => { stationSoundscape.control('tape'); puzzleDraft.splice(Number(button.dataset.puzzleRemove), 1); renderWithPuzzleScroll(); });
   document.querySelector<HTMLInputElement>('[data-frequency-range]')?.addEventListener('input', (event) => {
     const input = event.currentTarget as HTMLInputElement; puzzleDraft = [input.value];
     const value = Number(input.value); const strength = Math.max(0, 100 - Math.abs(88 - value) * 25);
@@ -614,7 +637,7 @@ function bind(): void {
     const submit = panel?.querySelector<HTMLButtonElement>('[data-puzzle-submit]'); if (submit) submit.disabled = value !== 88;
   });
   document.querySelectorAll<HTMLButtonElement>('[data-breaker]').forEach((button) => button.onclick = () => {
-    stationSoundscape.control('switch'); const value = button.dataset.breaker!; puzzleDraft = puzzleDraft.includes(value) ? puzzleDraft.filter((entry) => entry !== value) : [...puzzleDraft, value]; render();
+    stationSoundscape.control('switch'); const value = button.dataset.breaker!; puzzleDraft = puzzleDraft.includes(value) ? puzzleDraft.filter((entry) => entry !== value) : [...puzzleDraft, value]; renderWithPuzzleScroll();
   });
   document.querySelectorAll<HTMLInputElement>('[data-light-index]').forEach((input) => input.addEventListener('input', (event) => {
     const slider = event.currentTarget as HTMLInputElement; const index = Number(slider.dataset.lightIndex);
