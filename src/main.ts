@@ -151,6 +151,12 @@ function rotationPromptMarkup(): string {
   if (rotationPromptDismissed) return '';
   return '<aside class="rotation-prompt" role="dialog" aria-label="가로 화면 권장"><b>폰에서는 가로 화면을 권장합니다</b><p>장면과 퍼즐을 더 넓게 보려면 가로 전체화면으로 전환하세요.</p><div><button data-landscape>가로 전체화면</button><button data-dismiss-rotation>세로로 계속</button></div></aside>';
 }
+const phoneLandscapeQuery = window.matchMedia('(max-width:980px) and (orientation:landscape) and (max-height:520px)');
+phoneLandscapeQuery.addEventListener('change', (event) => {
+  if (!event.matches || !orientationNotice) return;
+  orientationNotice = '';
+  render();
+});
 
 const PUZZLE_META = {
   transmitter: {
@@ -578,7 +584,8 @@ function bind(): void {
       stationSoundscape.cue('collect');
       revealedItem = spot.reward.id;
       if (revealTimer) window.clearTimeout(revealTimer);
-      revealTimer = window.setTimeout(() => { revealedItem = null; revealTimer = undefined; render(); }, 4200);
+      const revealDuration = window.matchMedia('(max-width:760px)').matches ? 2000 : 4200;
+      revealTimer = window.setTimeout(() => { revealedItem = null; revealTimer = undefined; render(); }, revealDuration);
     }
     restoreFocusSelector = '[data-close-detail]'; commit(inspectHotspot(state, button.dataset.hotspot!), true);
   });
