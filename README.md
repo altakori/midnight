@@ -107,6 +107,7 @@ npm audit
 - `public/audio/`: CC0 공포 BGM·핵심 상호작용 효과음과 허상 엔딩 전용 Public Domain 비명
 - `THIRD_PARTY_ASSETS.md`: 외부 자산 출처·사용 조건·검증 해시
 - `DEVELOPMENT_LOG.md`: 콘셉트 변경과 검증 기록
+- `PROCESS_HYGIENE.md`: 개발 서버·QA 브라우저 소유권, PID·포트 원장, finally 종료와 RAM 검증 절차
 - `NARRATIVE_DESIGN.md`: 정답 사실, 사건 시간표, 세 단서 규칙, 엔딩별 행동·근거·결과와 외부 설계 근거
 
 검증된 정적 빌드는 별도 공개 저장소 `altakori/undecided-character-playtest`를 통해 GitHub Pages에 배포합니다. 개발 브랜치와 기록은 이 비공개 원본 저장소에 유지합니다.
