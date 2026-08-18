@@ -242,8 +242,8 @@ body{background:
 
 /* Phone-only compact pickup toast */
 @media(max-width:760px){
-  .collectible-reveal{right:max(8px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));grid-template-columns:40px minmax(0,1fr);gap:6px;width:min(230px,calc(100% - 16px));padding:5px}
-  .collectible-reveal img{width:40px;height:40px}.collectible-reveal div{gap:1px}.collectible-reveal small{font-size:7px}.collectible-reveal b{font-size:14px;line-height:1.1}.collectible-reveal span{display:none}.collectible-reveal em{padding-top:2px;font-size:8px;line-height:1.25}
+  .collectible-reveal{right:max(8px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));grid-template-columns:20px minmax(0,1fr);gap:4px;width:min(115px,calc(100% - 16px));padding:3px;pointer-events:auto;cursor:pointer}
+  .collectible-reveal img{width:20px;height:20px}.collectible-reveal div{gap:0}.collectible-reveal small,.collectible-reveal span,.collectible-reveal em{display:none}.collectible-reveal b{overflow:hidden;font-size:10px;line-height:1.05;white-space:nowrap;text-overflow:ellipsis}.collectible-reveal:active{transform:scale(.96)}
   .game:has(.collectible-reveal) .viewport{height:calc(100dvh - 276px);min-height:300px}.game:has(.collectible-reveal) .field-hint{margin-bottom:0}
 }
 @media(max-width:980px) and (orientation:landscape) and (max-height:520px){.game:has(.collectible-reveal) .viewport{height:calc(100dvh - 54px);min-height:0}}

@@ -123,6 +123,9 @@ window.addEventListener('keydown', primeSoundscape, { once: true, capture: true 
 
 type LockableOrientation = ScreenOrientation & { lock?: (orientation: 'landscape') => Promise<void>; unlock?: () => void };
 function fullscreenActive(): boolean { return Boolean(document.fullscreenElement); }
+function phoneLayoutActive(): boolean {
+  return window.matchMedia('(max-width:760px), (max-width:980px) and (max-height:520px)').matches;
+}
 async function toggleLandscapeMode(): Promise<void> {
   if (fullscreenActive()) {
     try { (screen.orientation as LockableOrientation).unlock?.(); } catch { /* Unlock support varies. */ }
@@ -138,10 +141,10 @@ async function toggleLandscapeMode(): Promise<void> {
       await orientation.lock('landscape');
       orientationNotice = '가로 전체화면으로 전환했습니다.';
     } else {
-      orientationNotice = '전체화면입니다. 기기를 직접 가로로 돌려 주세요.';
+      orientationNotice = phoneLayoutActive() ? '' : '전체화면입니다. 기기를 직접 가로로 돌려 주세요.';
     }
   } catch {
-    orientationNotice = '이 브라우저는 가로 잠금을 허용하지 않습니다. 기기를 직접 가로로 돌려 주세요.';
+    orientationNotice = phoneLayoutActive() ? '' : '이 브라우저는 가로 잠금을 허용하지 않습니다. 기기를 직접 가로로 돌려 주세요.';
   }
   rotationPromptDismissed = true;
   storageSet('session', 'midnight-frequency-rotation-dismissed', '1');
@@ -416,7 +419,7 @@ function toolBelt(): string {
 function collectibleRevealMarkup(): string {
   if (!revealedItem) return '';
   const info = ITEM_INFO[revealedItem];
-  return `<aside class="collectible-reveal" role="status"><img src="${itemArt(revealedItem)}" alt=""><div><small>새 도구 획득</small><b>${escapeHtml(info.name)}</b><span>${escapeHtml(info.description)}</span><em>${escapeHtml(info.pickupReaction)}</em></div></aside>`;
+  return `<aside class="collectible-reveal" role="status" data-dismiss-reveal aria-label="${escapeHtml(info.name)} 획득 알림"><img src="${itemArt(revealedItem)}" alt=""><div><small>새 도구 획득</small><b>${escapeHtml(info.name)}</b><span>${escapeHtml(info.description)}</span><em>${escapeHtml(info.pickupReaction)}</em></div></aside>`;
 }
 function itemDetailMarkup(): string {
   if (!selectedItem) return '';
@@ -592,6 +595,11 @@ function bind(): void {
   document.querySelectorAll<HTMLElement>('[data-inspect-item]').forEach((button) => button.onclick = () => {
     const id = button.dataset.inspectItem as ItemId;
     dismissReveal(); restoreFocusSelector = `[data-inspect-item="${id}"]`; selectedItem = id; state = inspect(state, id); save(); render();
+  });
+  document.querySelector<HTMLElement>('[data-dismiss-reveal]')?.addEventListener('click', () => {
+    if (!phoneLayoutActive()) return;
+    dismissReveal();
+    render();
   });
   document.querySelectorAll<HTMLElement>('[data-puzzle-value]').forEach((button) => button.onclick = () => { stationSoundscape.control('tape'); const value = button.dataset.puzzleValue!; if (!puzzleDraft.includes(value)) puzzleDraft.push(value); render(); });
   document.querySelectorAll<HTMLElement>('[data-puzzle-remove]').forEach((button) => button.onclick = () => { stationSoundscape.control('tape'); puzzleDraft.splice(Number(button.dataset.puzzleRemove), 1); render(); });
