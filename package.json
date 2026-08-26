@@ -3,6 +3,18 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "scripts": {"dev": "vite", "build": "vite build", "test": "vitest run"},
-  "devDependencies": {"@types/node": "^24.10.0", "typescript": "^5.9.3", "vite": "^7.2.2", "vitest": "^4.0.10"}
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "qa:uiux": "node scripts/ui-ux-contract.cjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "playwright": "^1.55.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2",
+    "vitest": "^4.0.10"
+  }
 }

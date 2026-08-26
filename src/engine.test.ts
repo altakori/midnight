@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CLUES, FINAL_STATEMENTS, ITEM_INFO, arrangeRecordings, arrivalMessage, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, endingAvailability, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
+import { CLUES, FINAL_STATEMENTS, ITEM_INFO, ROUTE_LEADS, arrangeRecordings, arrivalMessage, attemptFrequency, availableLocations, chooseEnding, chooseFinalStatement, connectBreaker, deserialize, endingAvailability, initialState, inspectHotspot, locationAvailable, move, resolveEditorialChoice, routeStatus,
+ investigationProgress, selectFlashlightFilter, serialize, visibleHotspots, type EditorialAction, type GameState, type Location } from './engine';
 
 function go(state: GameState, target: Location): GameState {
   for (let i = 0; i < 30 && state.location !== target; i++) state = move(state, 1);
@@ -32,7 +33,7 @@ function fullInvestigation(memoryChoices: EditorialAction[] = ['record', 'record
 describe('storm mountain radio station engine', () => {
   it('starts with the ten redesigned location slots and a clear objective', () => {
     const s = initialState();
-    expect(availableLocations(s)).toEqual(['entrance', 'lobby', 'hall', 'transmitter', 'power']);
+    expect(availableLocations(s)).toEqual(['entrance', 'lobby', 'hall', 'transmitter']);
     expect(s.location).toBe('entrance');
     expect(s.message).toContain('하윤');
     expect(locationAvailable(s, 'archive')).toBe(false);
@@ -43,9 +44,9 @@ describe('storm mountain radio station engine', () => {
     expect(move(s, -1)).toBe(s);
     s = move(s, 1);
     expect(s.location).toBe('lobby');
-    s = go(s, 'power');
+    s = go(s, 'transmitter');
     expect(move(s, 1)).toBe(s);
-    expect(s.location).toBe('power');
+    expect(s.location).toBe('transmitter');
   });
 
   it('changes revisited station reactions according to trusted and doubted memories', () => {
@@ -96,9 +97,25 @@ describe('storm mountain radio station engine', () => {
     let s = initialState();
     s = take(s, 'entrance-radio'); s = go(s, 'lobby'); s = take(s, 'lobby-frequency'); s = go(s, 'hall'); s = take(s, 'hall-gloves'); s = go(s, 'transmitter'); s = take(s, 'transmitter-key'); s = attemptFrequency(s, ['88']); s = go(s, 'power');
     s = connectBreaker(s, ['black', 'yellow', 'blue', 'red']);
-    expect(s.breaker.status).toBe('active'); expect(locationAvailable(s, 'archive')).toBe(false);
+    expect(s.breaker.status).toBe('active'); expect(locationAvailable(s, 'archive')).toBe(true);
     s = connectBreaker(s, ['antenna', 'emergency', 'studio']);
     expect(s.breaker.status).toBe('solved'); expect(locationAvailable(s, 'archive')).toBe(true);
+  });
+
+  it('opens three parallel leads after frequency and records the first two with distinct evidence', () => {
+    let s = { ...initialState(), frequency: { status: 'solved', attempts: 1, input: ['88'], feedback: 'ok' }, inventory: ['recording-reel', 'station-log', 'flashlight', 'color-filters'] } as GameState;
+    expect(ROUTE_LEADS).toHaveLength(3);
+    expect(availableLocations(s)).toEqual(['entrance', 'lobby', 'hall', 'transmitter', 'power', 'archive', 'studio']);
+    s = arrangeRecordings(s, ['storm', 'arrival', 'warning', 'erasure']);
+    expect(routeStatus(s)).toMatchObject({ solved: 1, order: ['timeline'] });
+    s = selectFlashlightFilter(s, ['2', '1', '3']);
+    expect(routeStatus(s)).toMatchObject({ solved: 2, order: ['timeline', 'light'], omitted: ['power'] });
+    expect(locationAvailable(s, 'passage')).toBe(true);
+    expect(s.routeEvidence).toEqual(['timeline', 'light']);
+    expect(investigationProgress(s)).toBe(3);
+    const optionalThird = connectBreaker({ ...s, inventory: [...s.inventory, 'insulated-gloves', 'breaker-key'] }, ['antenna', 'emergency', 'studio']);
+    expect(optionalThird.breaker.status).toBe('solved');
+    expect(investigationProgress(optionalThird)).toBe(3);
   });
 
   it('solves chronology, then colored flashlight selection in unlock order', () => {
@@ -237,9 +254,9 @@ describe('storm mountain radio station engine', () => {
   it('round-trips sets and puzzle progress, while safely resetting incompatible or malformed saves', () => {
     const progress = fullInvestigation();
     const roundTrip = deserialize(serialize(progress));
-    expect(roundTrip.version).toBe(10); expect(roundTrip.frequency.status).toBe('solved'); expect(roundTrip.finalStatement.status).toBe('solved'); expect(roundTrip.inventory).toEqual(progress.inventory);
-    const legacy = deserialize(JSON.stringify({ version: 9, location: 'roof', inventory: ['roof-key'], ending: 'erase' }));
-    expect(legacy.version).toBe(10); expect(legacy.location).toBe('entrance'); expect(legacy.ending).toBeUndefined(); expect(legacy.inventory).toEqual([]);
+    expect(roundTrip.version).toBe(11); expect(roundTrip.frequency.status).toBe('solved'); expect(roundTrip.finalStatement.status).toBe('solved'); expect(roundTrip.inventory).toEqual(progress.inventory);
+    const legacy = deserialize(JSON.stringify({ version: 10, location: 'roof', inventory: ['roof-key'], ending: 'erase' }));
+    expect(legacy.version).toBe(11); expect(legacy.location).toBe('entrance'); expect(legacy.ending).toBeUndefined(); expect(legacy.inventory).toEqual([]);
     const saved = JSON.parse(serialize(progress));
     for (const removedKey of ['unlocked', 'archiveLit', 'shadowSeen', 'rememberedSibling']) expect(saved).not.toHaveProperty(removedKey);
     for (const mutation of [
@@ -257,6 +274,9 @@ describe('storm mountain radio station engine', () => {
       { ...saved, contradictions: 4 },
       { ...saved, failedActions: -1 },
       { ...saved, frequency: { ...saved.frequency, attempts: 10001 } },
+      { ...saved, routeEvidence: [...saved.routeEvidence, saved.routeEvidence[0]] },
+      { ...saved, routeEvidence: [...saved.routeEvidence].reverse() },
+      { ...saved, routeEvidence: saved.routeEvidence.slice(0, 1) },
     ]) {
       const reset = deserialize(JSON.stringify(mutation));
       expect(reset.location).toBe('entrance'); expect(reset.ending).toBeUndefined(); expect(reset.inventory).toEqual([]);
