@@ -6,7 +6,6 @@ import {
   ITEM_INFO,
   LOCATION_ORDER,
   LOCATIONS,
-  ROUTE_LEADS,
   arrangeRecordings,
   attemptFrequency,
   availableLocations,
@@ -20,10 +19,8 @@ import {
   initialState,
   inspect,
   inspectHotspot,
-  investigationProgress,
   move,
   resolveEditorialChoice,
-  routeStatus,
   selectFlashlightFilter,
   serialize,
   visibleHotspots,
@@ -33,10 +30,10 @@ import {
   type ItemId,
 } from './engine';
 
-const SAVE_KEY = 'midnight-frequency-v11';
+const SAVE_KEY = 'midnight-frequency-v10';
 const GALLERY_KEY = 'midnight-frequency-endings-v1';
 const SIDE_NAV_TUTORIAL_KEY = 'midnight-frequency-side-nav-tutorial-v1';
-const LEGACY_KEYS = ['midnight-frequency-v10', 'midnight-frequency-v9', 'midnight-frequency-v8', 'midnight-frequency-v7', 'unwritten-village-submission-v6', 'unwritten-village-submission-v5'];
+const LEGACY_KEYS = ['midnight-frequency-v9', 'midnight-frequency-v8', 'midnight-frequency-v7', 'unwritten-village-submission-v6', 'unwritten-village-submission-v5'];
 const app = document.querySelector<HTMLDivElement>('#app')!;
 type StorageKind = 'local' | 'session';
 function browserStorage(kind: StorageKind): Storage | null {
@@ -299,7 +296,7 @@ function escapeHtml(value: string): string {
 }
 function asset(path: string): string { return `${import.meta.env.BASE_URL}${path}`; }
 function itemArt(id: ItemId): string { return asset(`art/radio/items/${id}.webp`); }
-function puzzleSolvedFor(value: GameState): number { return investigationProgress(value); }
+function puzzleSolvedFor(value: GameState): number { return [value.frequency, value.breaker, value.recordings, value.flashlight, value.finalStatement].filter((puzzle) => puzzle.status === 'solved').length; }
 function puzzleSolved(): number { return puzzleSolvedFor(state); }
 function objective(): string {
   if (state.ending === 'illusion') return '88.0 MHz가 만든 하윤의 정체를 확인했다.';
@@ -309,7 +306,9 @@ function objective(): string {
     const hasFrequencyTools = state.inventory.includes('handheld-radio') && state.inventory.includes('frequency-card');
     return hasFrequencyTools ? '송신실에서 하윤의 88.0 MHz 신호를 잡자.' : '입구와 로비를 조사해 88.0 MHz 장비를 모으자.';
   }
-  if (state.frequency.status === 'solved' && routeStatus(state).solved < 2) return `세 갈래 조사 중 ${2 - routeStatus(state).solved}곳을 더 확인하자.`;
+  if (state.breaker.status !== 'solved') return '전력실에서 구조용 회로 3개만 켜자.';
+  if (state.recordings.status !== 'solved') return '보관실 테이프를 사건 순서대로 놓자.';
+  if (state.flashlight.status !== 'solved') return '세 색의 광량을 맞춰 숨은 문을 열자.';
   if (state.finalStatement.status !== 'solved') return '심야 부스에서 거짓 방송 하나를 골라 빼자.';
   return '옥상으로 올라가 하윤을 찾자.';
 }
@@ -350,17 +349,8 @@ function sceneMarkup(): string {
   const openLocations = availableLocations(state);
   const locationIndex = openLocations.indexOf(state.location);
   const sideNavigation = detailOpen ? '' : `<button class="scene-nav-zone left ${sideNavTutorialOpen ? 'tutorial' : ''}" data-turn="-1" tabindex="-1" aria-hidden="true" ${locationIndex > 0 ? '' : 'disabled'}><span>화면 왼쪽 영역<br><b>이전 장소</b></span></button><button class="scene-nav-zone right ${sideNavTutorialOpen ? 'tutorial' : ''}" data-turn="1" tabindex="-1" aria-hidden="true" ${locationIndex < openLocations.length - 1 ? '' : 'disabled'}><span>화면 오른쪽 영역<br><b>다음 장소</b></span></button>${sideNavTutorialOpen ? '<p class="side-nav-guide"><b>이동 튜토리얼</b> · 화면 왼쪽 또는 오른쪽 가장자리의 어두운 영역을 아무 곳이나 누르세요.</p>' : ''}`;
-  return `<div class="scene-image ${sceneClass}" style="background-image:url('${art}')"></div><div class="rain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>${routeBoardMarkup()}
+  return `<div class="scene-image ${sceneClass}" style="background-image:url('${art}')"></div><div class="rain" aria-hidden="true"></div><div class="vignette" aria-hidden="true"></div>
     ${sideNavigation}${detailOpen ? `<div class="scene-backdrop-exit" data-close-detail aria-hidden="true"></div><p class="backdrop-dismiss-hint scene-dismiss-hint" aria-hidden="true">바깥 화면을 눌러서 나가기</p><button class="back-to-scene" data-close-detail aria-label="가까이 보기에서 장소 전체로 돌아가기"><i aria-hidden="true">←</i> 뒤로</button>${state.found.size === 0 ? '<p class="detail-guide"><b>첫 조사</b> · 장면 속 도구 그림을 누르면 가방에 들어갑니다. 빈 배경을 누르면 돌아갑니다.</p>' : ''}${hotspotButtons}${puzzle}` : `<button class="inspect-area" data-open-detail><small>가까이 보기</small><strong>${puzzleEntryLabel()}</strong></button>`}`;
-}
-function routeBoardMarkup(): string {
-  if (state.frequency.status !== 'solved' || routeStatus(state).solved >= 2) return '';
-  const status = routeStatus(state);
-  const cards = ROUTE_LEADS.map((route) => {
-    const solved = status.order.includes(route.id);
-    return `<article class="route-card ${solved ? 'solved' : ''}"><span>${solved ? `조사 ${status.order.indexOf(route.id) + 1}순위` : '병렬 조사 가능'}</span><h3>${escapeHtml(route.title)}</h3><p>${escapeHtml(route.detail)}</p><small>${escapeHtml(route.evidence)}</small></article>`;
-  }).join('');
-  return `<aside class="route-board" aria-label="병렬 조사 경로"><b>다음 단계 · 세 단서 중 두 곳</b><p>전력실·보관실·녹음실 중 원하는 순서로 두 곳을 해결하면 숨은 통로가 열린다.</p><div>${cards}</div></aside>`;
 }
 function puzzleEntryLabel(): string {
   if (state.location === 'transmitter') return '송신기 다이얼 확인하기';
@@ -423,19 +413,19 @@ function optionLabel(options: readonly (readonly [string, string])[], value?: st
 function puzzleReady(location: PuzzleLocation): boolean {
   if (location === 'transmitter') return state.inventory.includes('handheld-radio') && state.inventory.includes('frequency-card');
   if (location === 'power') return state.frequency.status === 'solved' && state.inventory.includes('insulated-gloves') && state.inventory.includes('breaker-key');
-  if (location === 'archive') return state.frequency.status === 'solved' && state.inventory.includes('recording-reel') && state.inventory.includes('station-log');
-  return state.frequency.status === 'solved' && state.inventory.includes('flashlight') && state.inventory.includes('color-filters');
+  if (location === 'archive') return state.breaker.status === 'solved' && state.inventory.includes('recording-reel') && state.inventory.includes('station-log');
+  return state.recordings.status === 'solved' && state.inventory.includes('flashlight') && state.inventory.includes('color-filters');
 }
 function puzzleRequirement(location: PuzzleLocation): string {
   if (location === 'transmitter') return '휴대 라디오와 주파수 카드를 먼저 찾자.';
   if (location === 'power') return '송신실 퍼즐을 풀고 절연 장갑과 차단기 열쇠를 찾자.';
-  if (location === 'archive') return '주파수를 맞춘 뒤 녹음 릴과 방송국 일지를 찾자.';
-  return '주파수를 맞춘 뒤 손전등과 색 필터를 찾자.';
+  if (location === 'archive') return '전력실 퍼즐을 풀고 녹음 릴과 방송국 일지를 찾자.';
+  return '보관실 퍼즐을 풀고 손전등과 색 필터를 찾자.';
 }
 function finalPuzzleMarkup(): string {
   if (state.finalStatement.status === 'solved') return `<section class="puzzle-panel solved"><span>거짓 방송 제거 완료</span><h3>옥상 문이 열렸다</h3><p>${escapeHtml(state.finalStatement.feedback)}</p></section>`;
-  const ready = routeStatus(state).solved >= 2 && state.inventory.includes('memory-tape') && state.inventory.includes('sibling-photo') && state.clues.has('false-script');
-  return `<section class="puzzle-panel final-puzzle ${ready ? '' : 'locked'} ${state.finalStatement.attempts ? 'has-attempt' : ''}"><span>마지막 판별</span><h3>거짓 방송 하나 빼기</h3><p>사진의 시각, 기억 테이프, 방송 기록과 충돌하는 문장을 골라 송신기에서 빼자.</p>${ready ? `<div class="evidence-check"><b>사진</b><b>테이프</b><b>방송 기록</b></div><div class="statement-stack">${FINAL_STATEMENTS.map((text, index) => `<button data-statement="${index}"><span>방송 ${index + 1}</span><b>${escapeHtml(text)}</b></button>`).join('')}</div>` : '<em>동생 사진, 기억 테이프, 수상한 방송 기록이 모두 필요하다.</em>'}${state.finalStatement.feedback ? `<small class="puzzle-feedback">${escapeHtml(state.finalStatement.feedback)}</small>` : ''}</section>`;
+  const ready = state.flashlight.status === 'solved' && state.inventory.includes('memory-tape') && state.inventory.includes('sibling-photo') && state.clues.has('false-script');
+  return `<section class="puzzle-panel final-puzzle ${ready ? '' : 'locked'} ${state.finalStatement.attempts ? 'has-attempt' : ''}"><span>다섯 번째 퍼즐</span><h3>거짓 방송 하나 빼기</h3><p>사진의 시각, 기억 테이프, 방송 기록과 충돌하는 문장을 골라 송신기에서 빼자.</p>${ready ? `<div class="evidence-check"><b>사진</b><b>테이프</b><b>방송 기록</b></div><div class="statement-stack">${FINAL_STATEMENTS.map((text, index) => `<button data-statement="${index}"><span>방송 ${index + 1}</span><b>${escapeHtml(text)}</b></button>`).join('')}</div>` : '<em>동생 사진, 기억 테이프, 수상한 방송 기록이 모두 필요하다.</em>'}${state.finalStatement.feedback ? `<small class="puzzle-feedback">${escapeHtml(state.finalStatement.feedback)}</small>` : ''}</section>`;
 }
 function storyRecapMarkup(): string {
   const decisions = CLUES.map((clue) => {
@@ -443,10 +433,7 @@ function storyRecapMarkup(): string {
     if (!choice) return '';
     return `<li><b>${escapeHtml(clue.title)}</b><span>${choice === 'record' ? '증거로 보존' : '합성 가능성으로 격리'}</span></li>`;
   }).join('');
-  const route = routeStatus(state);
-  const routeNames = route.order.map((id) => ROUTE_LEADS.find((candidate) => candidate.id === id)?.title ?? id).join(' → ') || '아직 선택하지 않음';
-  const omittedName = route.omitted.map((id) => ROUTE_LEADS.find((candidate) => candidate.id === id)?.title ?? id).join(', ') || '없음';
-  return `<aside class="story-recap"><span>옥상 앞 증거 정리</span><p class="recap-verdict"><b>증거 결론</b> 하윤은 실제로 옥상에 있고, 88.0 구조 호출만 과거 통화를 자른 합성이다.</p><h4>확인된 사실</h4><ul class="recap-facts"><li>23:58 사진·발자국·옥상 흔적은 하윤의 실제 동선을 가리킨다.</li><li>88.0 호출은 과거 통화를 자른 합성이며 숨과 방 잔향이 없다.</li><li>23:55 실제 릴에는 연속된 숨·비·스튜디오 잔향이 있다.</li><li>내가 택한 조사 순서: ${escapeHtml(routeNames)} · 건너뛴 세 번째 경로: ${escapeHtml(omittedName)}</li></ul><h4>내가 분류한 기록</h4><ul class="recap-decisions">${decisions || '<li><span>아직 분류한 기록이 없다.</span></li>'}</ul></aside>`;
+  return `<aside class="story-recap"><span>옥상 앞 증거 정리</span><p class="recap-verdict"><b>증거 결론</b> 하윤은 실제로 옥상에 있고, 88.0 구조 호출만 과거 통화를 자른 합성이다.</p><h4>확인된 사실</h4><ul class="recap-facts"><li>23:58 사진·발자국·옥상 흔적은 하윤의 실제 동선을 가리킨다.</li><li>88.0 호출은 과거 통화를 자른 합성이며 숨과 방 잔향이 없다.</li><li>23:55 실제 릴에는 연속된 숨·비·스튜디오 잔향이 있다.</li></ul><h4>내가 분류한 기록</h4><ul class="recap-decisions">${decisions || '<li><span>아직 분류한 기록이 없다.</span></li>'}</ul></aside>`;
 }
 function endingChoicesMarkup(): string {
   if (state.finalStatement.status !== 'solved') return '<section class="puzzle-panel locked"><h3>옥상 문이 잠겨 있다</h3><p>심야 부스에서 거짓 방송 하나를 먼저 빼자.</p></section>';
@@ -518,7 +505,7 @@ function endingMarkup(): string {
   return `<section class="ending-screen ending-${ending}"><div class="ending-hero" style="background-image:url('${art}')" role="img" aria-label="${escapeHtml(info.title)} 엔딩 장면"></div><div class="ending-grade" aria-hidden="true"></div><article><small>${escapeHtml(info.kicker)}</small><h2>${escapeHtml(info.title)}</h2><blockquote>${escapeHtml(story.quote)}</blockquote><div class="ending-story">${beats}</div><b>${escapeHtml(info.summary)}</b><div class="ending-actions">${primaryAction}<button data-reset>처음부터 다시 하기</button></div></article></section>`;
 }
 function introMarkup(): string {
-  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폐쇄된 해월 제7중계소 · 공명 복원 방송 재가동</span><h2>자정까지 30분.<br>진짜 하윤의 흔적을 구별하라.</h2><p class="intro-call">“오빠, 목소리를 따라오지 마. <b>숨과 방의 울림</b>을 확인해.”</p><p>음향 복원 기사 하윤은 폐쇄 방송국의 불법 실험 기록을 찾다 옥상에 고립됐다. 자정이 되면 공명 복원 방송이 지난 30분의 기억과 증거를 합성 문장으로 덮어쓴다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>두 조사 경로를 끝낸 뒤 마지막 거짓 방송을 판별하고 옥상으로 올라간다.</li></ol><small class="playtime-note">실시간 제한은 없습니다. 탐색 속도는 결말에 영향을 주지 않습니다.</small><small class="horror-note">공포 화면과 짧은 비명·음향 연출이 포함됩니다.</small><div class="intro-actions"><button data-start>구조 신호 찾기</button><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button></div></section></aside>`;
+  return `<aside class="screen-overlay intro" role="dialog" aria-modal="true"><section><span>23:30 · 폐쇄된 해월 제7중계소 · 공명 복원 방송 재가동</span><h2>자정까지 30분.<br>진짜 하윤의 흔적을 구별하라.</h2><p class="intro-call">“오빠, 목소리를 따라오지 마. <b>숨과 방의 울림</b>을 확인해.”</p><p>음향 복원 기사 하윤은 폐쇄 방송국의 불법 실험 기록을 찾다 옥상에 고립됐다. 자정이 되면 공명 복원 방송이 지난 30분의 기억과 증거를 합성 문장으로 덮어쓴다.</p><ol><li>장소를 옮겨 빛나는 물건을 찾는다.</li><li>서로 다른 네 장비를 직접 조작한다.</li><li>마지막 다섯 번째 퍼즐에서 거짓 방송을 판별하고 옥상으로 올라간다.</li></ol><small class="playtime-note">실시간 제한은 없습니다. 탐색 속도는 결말에 영향을 주지 않습니다.</small><small class="horror-note">공포 화면과 짧은 비명·음향 연출이 포함됩니다.</small><div class="intro-actions"><button data-start>구조 신호 찾기</button><button data-gallery>엔딩 갤러리 ${unlockedEndings.size}/${ENDINGS.length}</button></div></section></aside>`;
 }
 function render(): void {
   const location = LOCATIONS[state.location];
@@ -526,7 +513,7 @@ function render(): void {
   const placeNumber = LOCATION_ORDER.indexOf(state.location) + 1;
   const openLocationIndex = openLocations.indexOf(state.location);
   app.innerHTML = `<main class="game ${signalMood()} ${paused ? 'paused' : ''} ${detailOpen ? 'is-detail' : ''} ${state.ending ? 'has-ending' : ''}">
-    <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="조사 진행 ${puzzleSolved()}/4 완료">${Array.from({ length: 4 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>증거 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-gallery>엔딩 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-audio aria-pressed="${stationSoundscape.isEnabled()}" aria-label="전체 음향 ${stationSoundscape.isEnabled() ? '켜짐' : '꺼짐'}. 눌러서 전환" title="전체 음향 켜기 또는 끄기">전체 ${stationSoundscape.isEnabled() ? '●' : '○'}</button><label class="music-volume" title="배경 음악 음량"><span>BGM <output data-music-value>${stationSoundscape.getMusicVolume()}</output></span><input data-music-volume type="range" min="0" max="100" step="1" value="${stationSoundscape.getMusicVolume()}" aria-label="배경 음악 음량 ${stationSoundscape.getMusicVolume()}%"></label><button data-landscape aria-label="${fullscreenActive() ? '전체화면 종료' : '가로 전체화면 전환'}">${fullscreenActive() ? '창모드' : '가로 전체'}</button><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
+    <header class="game-header"><div class="brand"><span>해월 제7중계소 · 23:30</span><h1>자정 <em>주파수</em></h1></div><div class="header-objective"><span>현재 목표</span><strong>${objective()}</strong><div class="progress" aria-label="퍼즐 ${puzzleSolved()}/5 완료">${Array.from({ length: 5 }, (_, i) => `<i class="${i < puzzleSolved() ? 'done' : ''}"></i>`).join('')}</div><span class="mobile-signal" title="방송 신호 ${signalLabel()}" aria-label="방송 신호 ${signalLabel()}"><i class="${state.tension >= 35 ? 'lit' : ''}"></i><i class="${state.tension >= 65 ? 'lit' : ''}"></i><i class="${state.tension >= 90 ? 'lit' : ''}"></i></span></div><nav><i>● 저장됨</i><button data-journal>증거 ${state.clues.size}/3</button><button data-bag aria-expanded="${bagOpen}">가방 ${state.inventory.length}</button><button data-gallery>엔딩 ${unlockedEndings.size}/${ENDINGS.length}</button><button data-audio aria-pressed="${stationSoundscape.isEnabled()}" aria-label="전체 음향 ${stationSoundscape.isEnabled() ? '켜짐' : '꺼짐'}. 눌러서 전환" title="전체 음향 켜기 또는 끄기">전체 ${stationSoundscape.isEnabled() ? '●' : '○'}</button><label class="music-volume" title="배경 음악 음량"><span>BGM <output data-music-value>${stationSoundscape.getMusicVolume()}</output></span><input data-music-volume type="range" min="0" max="100" step="1" value="${stationSoundscape.getMusicVolume()}" aria-label="배경 음악 음량 ${stationSoundscape.getMusicVolume()}%"></label><button data-landscape aria-label="${fullscreenActive() ? '전체화면 종료' : '가로 전체화면 전환'}">${fullscreenActive() ? '창모드' : '가로 전체'}</button><button data-pause>${paused ? '계속' : '멈춤'}</button></nav></header>
     <section class="viewport" aria-label="${escapeHtml(location.title)}"><div class="place"><small>장소 ${String(placeNumber).padStart(2, '0')} · ${openLocations.length}/10 열림</small><h2>${escapeHtml(location.title)}</h2><p>${escapeHtml(location.subtitle)}</p></div>${sceneMarkup()}
       ${!detailOpen ? `<button class="turn left" data-turn="-1" aria-label="${openLocationIndex > 0 ? '이전 장소' : '이전 장소 없음'}" ${openLocationIndex > 0 ? '' : 'disabled'}>‹<span>이전</span></button><button class="turn right" data-turn="1" aria-label="${openLocationIndex < openLocations.length - 1 ? '다음 장소' : '다음 장소 없음'}" ${openLocationIndex < openLocations.length - 1 ? '' : 'disabled'}>›<span>다음</span></button>` : ''}
       <p class="message" role="status">${escapeHtml(state.message)}</p><div class="signal"><span>방송 신호 · ${signalLabel()}</span><b><i style="width:${state.tension}%"></i></b></div>
@@ -592,9 +579,9 @@ function dismissReward(): void {
   rewardTimer = undefined;
 }
 function showReward(stage: number): void {
-  const titles = ['목소리 신호 포착', '첫 조사 증거 확보', '숨은 통로 개방', '거짓 방송 제거'];
+  const titles = ['목소리 신호 포착', '비상 전력 복구', '사건 순서 복원', '숨은 통로 개방', '거짓 방송 제거'];
   dismissReward();
-  rewardBeat = { kicker: `옥상 신호 복구 ${stage}/4`, title: titles[stage - 1] ?? '경로 개방', text: state.message, major: true };
+  rewardBeat = { kicker: `옥상 신호 복구 ${stage}/5`, title: titles[stage - 1] ?? '경로 개방', text: state.message, major: true };
   stationSoundscape.solve(stage);
   rewardTimer = window.setTimeout(() => { rewardBeat = null; rewardTimer = undefined; render(); }, 3300);
 }

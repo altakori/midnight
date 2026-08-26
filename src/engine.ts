@@ -1,12 +1,6 @@
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 10;
 
 export type Location = 'entrance' | 'lobby' | 'hall' | 'transmitter' | 'power' | 'archive' | 'studio' | 'passage' | 'booth' | 'roof';
-export type RouteLead = 'power' | 'timeline' | 'light';
-export const ROUTE_LEADS: readonly { id: RouteLead; title: string; detail: string; evidence: string }[] = [
-  { id: 'power', title: '전력부터', detail: '옥상과 스튜디오를 살릴 전원을 먼저 고른다.', evidence: '하윤은 수동 차단을 준비하고 안에 남았다.' },
-  { id: 'timeline', title: '시간부터', detail: '기록 릴을 맞춰 하윤의 실제 동선을 복원한다.', evidence: '23:55 원본 릴이 23:40 퇴장을 반박한다.' },
-  { id: 'light', title: '빛부터', detail: '숨은 문양을 밝혀 하윤의 통로를 찾는다.', evidence: '세 빛이 겹친 벽 뒤에 젖은 발자국이 있다.' },
-];
 export type ItemId = 'handheld-radio' | 'frequency-card' | 'insulated-gloves' | 'breaker-key' | 'recording-reel' | 'station-log' | 'flashlight' | 'color-filters' | 'sibling-photo' | 'roof-key' | 'memory-tape';
 export type Ending = 'restore' | 'erase' | 'human' | 'illusion';
 export type EditorialAction = 'record' | 'delete';
@@ -20,7 +14,6 @@ export interface GameState {
   tension: number; failedActions: number; message: string; ending?: Ending;
   editorialScore: number; ink: number; correctionFluid: number; contradictions: number;
   clueDecisions: Record<string, EditorialAction>; pendingClue?: string;
-  routeOrder: RouteLead[]; routeEvidence: string[];
   frequency: PuzzleState; breaker: PuzzleState; recordings: PuzzleState; flashlight: PuzzleState; finalStatement: PuzzleState;
 }
 export type EndingAvailability = Record<Ending, boolean> & { resolved: number };
@@ -77,13 +70,12 @@ export const HOTSPOTS: Hotspot[] = [
 ];
 
 const puzzle = (): PuzzleState => ({ status: 'locked', attempts: 0, input: [], feedback: '' });
-export function initialState(): GameState { return { version: SAVE_VERSION, location: 'entrance', inventory: [], found: new Set(), clues: new Set(), tension: 12, failedActions: 0, message: '자정까지 30분. 하윤을 찾고, 거짓 방송이 기억을 덮기 전에 송신기를 멈추자.', editorialScore: 0, ink: 2, correctionFluid: 1, contradictions: 0, clueDecisions: {}, routeOrder: [], routeEvidence: [], frequency: puzzle(), breaker: puzzle(), recordings: puzzle(), flashlight: puzzle(), finalStatement: puzzle() }; }
+export function initialState(): GameState { return { version: SAVE_VERSION, location: 'entrance', inventory: [], found: new Set(), clues: new Set(), tension: 12, failedActions: 0, message: '자정까지 30분. 하윤을 찾고, 거짓 방송이 기억을 덮기 전에 송신기를 멈추자.', editorialScore: 0, ink: 2, correctionFluid: 1, contradictions: 0, clueDecisions: {}, frequency: puzzle(), breaker: puzzle(), recordings: puzzle(), flashlight: puzzle(), finalStatement: puzzle() }; }
 export function serialize(state: GameState): string { return JSON.stringify({ ...state, found: [...state.found], clues: [...state.clues] }); }
 const ITEM_IDS = new Set<ItemId>(Object.keys(ITEM_INFO) as ItemId[]);
 const CLUE_IDS = new Set(CLUES.map((clue) => clue.id));
 const FOUND_IDS = new Set(HOTSPOTS.map((hotspot) => `hotspot:${hotspot.id}`));
 const LOCATIONS_SET = new Set<Location>(LOCATION_ORDER);
-const ROUTE_IDS = new Set<RouteLead>(ROUTE_LEADS.map((route) => route.id));
 const PUZZLE_STATUSES = new Set<PuzzleStatus>(['locked', 'active', 'solved']);
 function isStringArray(value: unknown): value is string[] { return Array.isArray(value) && value.every((entry) => typeof entry === 'string'); }
 function isPuzzleState(value: unknown): value is PuzzleState {
@@ -102,10 +94,6 @@ export function deserialize(raw: string): GameState {
   const validDecisions = candidate.clueDecisions && typeof candidate.clueDecisions === 'object'
     && Object.entries(candidate.clueDecisions).every(([id, action]) => CLUE_IDS.has(id) && (action === 'record' || action === 'delete'));
   const validPending = candidate.pendingClue === undefined || (typeof candidate.pendingClue === 'string' && CLUE_IDS.has(candidate.pendingClue));
-  const validRoutes = isStringArray(candidate.routeOrder) && candidate.routeOrder.every((id) => ROUTE_IDS.has(id as RouteLead)) && new Set(candidate.routeOrder).size === candidate.routeOrder.length && candidate.routeOrder.length <= 3
-    && isStringArray(candidate.routeEvidence) && candidate.routeEvidence.length === candidate.routeOrder.length
-    && new Set(candidate.routeEvidence).size === candidate.routeEvidence.length
-    && candidate.routeEvidence.every((id, index) => ROUTE_IDS.has(id as RouteLead) && id === candidate.routeOrder![index]);
 
   const validNumbers = typeof candidate.tension === 'number' && Number.isFinite(candidate.tension) && candidate.tension >= 0 && candidate.tension <= 100
     && Number.isInteger(candidate.failedActions) && Number(candidate.failedActions) >= 0 && Number(candidate.failedActions) <= 10000
@@ -117,7 +105,7 @@ export function deserialize(raw: string): GameState {
     || !Array.isArray(candidate.inventory) || !candidate.inventory.every((id) => typeof id === 'string' && ITEM_IDS.has(id as ItemId))
     || !isStringArray(candidate.found) || !candidate.found.every((id) => FOUND_IDS.has(id))
     || !isStringArray(candidate.clues) || !candidate.clues.every((id) => CLUE_IDS.has(id)) || !puzzles.every(isPuzzleState)
-    || !validEnding || !validDecisions || !validPending || !validRoutes
+    || !validEnding || !validDecisions || !validPending
     || !validNumbers || typeof candidate.message !== 'string') return initialState();
   const base = initialState();
   return { ...base, ...candidate, location: candidate.location as Location, ending: candidate.ending,
@@ -126,23 +114,8 @@ export function deserialize(raw: string): GameState {
     recordings: candidate.recordings!, flashlight: candidate.flashlight!, finalStatement: candidate.finalStatement! };
 }
 function patch(state: GameState, change: Partial<GameState>): GameState { return { ...state, ...change }; }
-function leadSolved(state: GameState): number { return [state.breaker, state.recordings, state.flashlight].filter((puzzle) => puzzle.status === 'solved').length; }
-export function investigationProgress(state: GameState): number {
-  return Number(state.frequency.status === 'solved') + Math.min(2, leadSolved(state)) + Number(state.finalStatement.status === 'solved');
-}
-export function locationAvailable(state: GameState, location: Location): boolean {
-  const index = LOCATION_ORDER.indexOf(location); if (index < 0) return false;
-  if (location === 'transmitter') return index <= 3;
-  if (location === 'power' || location === 'archive' || location === 'studio') return state.frequency.status === 'solved';
-  if (location === 'passage' || location === 'booth') return leadSolved(state) >= 2;
-  if (location === 'roof') return state.finalStatement.status === 'solved';
-  return index <= 2;
-}
+export function locationAvailable(state: GameState, location: Location): boolean { const index = LOCATION_ORDER.indexOf(location); if (index < 0) return false; if (location === 'archive') return state.breaker.status === 'solved'; if (location === 'studio') return state.recordings.status === 'solved'; if (location === 'passage') return state.flashlight.status === 'solved'; if (location === 'booth') return state.flashlight.status === 'solved'; if (location === 'roof') return state.finalStatement.status === 'solved'; return index <= 4 || (index === 5 && state.breaker.status === 'solved'); }
 export function availableLocations(state: GameState): Location[] { return LOCATION_ORDER.filter((location) => locationAvailable(state, location)); }
-export function routeStatus(state: GameState): { solved: number; order: RouteLead[]; omitted: RouteLead[] } {
-  const order = state.routeOrder.filter((id) => ROUTE_IDS.has(id));
-  return { solved: leadSolved(state), order, omitted: ROUTE_LEADS.map((route) => route.id).filter((id) => !order.includes(id)) };
-}
 const ARRIVAL_REACTIONS: Partial<Record<Location, { trusted: string; doubted: string; mixed: string }>> = {
   hall: {
     trusted: '스피커 잡음 사이로 하윤의 숨이 처음으로 섞인다.',
@@ -204,15 +177,12 @@ function attempt(state: GameState, key: 'frequency' | 'breaker' | 'recordings' |
   const matches = input.filter((value, index) => value.toLowerCase() === answer[index]?.toLowerCase()).length;
   const correct = input.length === answer.length && matches === answer.length;
   const next: PuzzleState = { status: correct ? 'solved' : 'active', attempts: current.attempts + 1, input, feedback: correct ? success : WRONG_FEEDBACK[key](matches, answer.length) };
-  const route: RouteLead | undefined = key === 'breaker' ? 'power' : key === 'recordings' ? 'timeline' : key === 'flashlight' ? 'light' : undefined;
-  const routeOrder = correct && route && !state.routeOrder.includes(route) ? [...state.routeOrder, route] : state.routeOrder;
-  const routeEvidence = correct && route && !state.routeEvidence.includes(route) ? [...state.routeEvidence, route] : state.routeEvidence;
-  return patch(state, { [key]: next, routeOrder, routeEvidence, message: next.feedback, failedActions: state.failedActions + (correct ? 0 : 1), tension: Math.min(100, state.tension + (correct ? 0 : 4)) });
+  return patch(state, { [key]: next, message: next.feedback, failedActions: state.failedActions + (correct ? 0 : 1), tension: Math.min(100, state.tension + (correct ? 0 : 4)) });
 }
 export function attemptFrequency(state: GameState, sequence: string[]): GameState { return attempt(state, 'frequency', sequence, ['88'], state.inventory.includes('handheld-radio') && state.inventory.includes('frequency-card'), '88.0 MHz 고정. 하윤의 목소리는 선명하지만 숨과 방 잔향이 없다. 구조 신호가 아니라 가족 통화를 조립한 합성 문장이다.'); }
 export function connectBreaker(state: GameState, activeCircuits: string[]): GameState { const normalized = [...activeCircuits].sort(); return attempt(state, 'breaker', normalized, ['antenna', 'emergency', 'studio'], state.inventory.includes('insulated-gloves') && state.inventory.includes('breaker-key') && state.frequency.status === 'solved', '비상 전력이 터졌다. 붉은 복도등이 옥상까지 차례로 켜진다.'); }
-export function arrangeRecordings(state: GameState, order: string[]): GameState { return attempt(state, 'recordings', order, ['storm', 'arrival', 'warning', 'erasure'], state.inventory.includes('recording-reel') && state.inventory.includes('station-log') && state.frequency.status === 'solved', '시간축 복원 완료. 23:55 릴의 연속된 숨·비·잔향은 88.0 합성 호출과 다르며, 실제 하윤이 스튜디오에 있었음을 증명한다.'); }
-export function selectFlashlightFilter(state: GameState, levels: string[]): GameState { return attempt(state, 'flashlight', levels, ['2', '1', '3'], state.inventory.includes('flashlight') && state.inventory.includes('color-filters') && state.frequency.status === 'solved', '세 빛이 겹치자 벽이 투명해지고 옥상으로 가는 숨은 통로가 열린다.'); }
+export function arrangeRecordings(state: GameState, order: string[]): GameState { return attempt(state, 'recordings', order, ['storm', 'arrival', 'warning', 'erasure'], state.inventory.includes('recording-reel') && state.inventory.includes('station-log') && state.breaker.status === 'solved', '시간축 복원 완료. 23:55 릴의 연속된 숨·비·잔향은 88.0 합성 호출과 다르며, 실제 하윤이 스튜디오에 있었음을 증명한다.'); }
+export function selectFlashlightFilter(state: GameState, levels: string[]): GameState { return attempt(state, 'flashlight', levels, ['2', '1', '3'], state.inventory.includes('flashlight') && state.inventory.includes('color-filters') && state.recordings.status === 'solved', '세 빛이 겹치자 벽이 투명해지고 옥상으로 가는 숨은 통로가 열린다.'); }
 export const solveFrequency = attemptFrequency;
 export const solveBreaker = connectBreaker;
 export const solveRecordings = arrangeRecordings;
@@ -221,7 +191,7 @@ export const FINAL_STATEMENTS = ['하윤은 23:40에 방송국을 떠났다.', '
 export function chooseFinalStatement(state: GameState, statementIndex: number): GameState {
   if (state.location !== 'booth' && state.location !== 'roof') return fail(state, '심야 부스에서 방송 기록을 확인해야 한다.');
   if (state.finalStatement.status === 'solved') return state;
-  const evidenceReady = leadSolved(state) >= 2 && state.inventory.includes('memory-tape') && state.inventory.includes('sibling-photo') && state.clues.has('false-script');
+  const evidenceReady = state.flashlight.status === 'solved' && state.inventory.includes('memory-tape') && state.inventory.includes('sibling-photo') && state.clues.has('false-script');
   if (!evidenceReady) return fail(state, '동생 사진, 기억 테이프, 수상한 방송 기록을 모두 대조해야 한다.');
   const correct = statementIndex === 0;
   const next: PuzzleState = { status: correct ? 'solved' : 'active', attempts: state.finalStatement.attempts + 1, input: [String(statementIndex)], feedback: correct ? '23:58 사진과 정비 통로 동선이 23:40 퇴장 방송을 반증한다. 거짓 방송을 송신기에서 격리했다.' : '그 문장은 원본 시각·동선과 충돌하지 않는다. 23:40 퇴장 주장만 세 증거에 의해 반박된다.' };
