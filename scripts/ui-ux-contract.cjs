@@ -4,7 +4,7 @@ const path = require('path');
 
 const BASE = process.env.MIDNIGHT_URL || 'http://localhost:5174';
 const OUT = path.join('qa-art', 'ui-ux-contract');
-const SAVE_KEY = 'midnight-frequency-v11';
+const SAVE_KEY = 'midnight-frequency-v10';
 fs.mkdirSync(OUT, { recursive: true });
 
 function invariant(condition, message) {
@@ -151,7 +151,17 @@ async function requireFocusWrap(page, dialogSelector, label) {
     invariant(tooSmall.length === 0, `portrait: critical touch targets below 36px: ${JSON.stringify(tooSmall)}`);
     const tinyPortraitText = portrait.critical.filter((item) => item.fontSize < 9);
     invariant(tinyPortraitText.length === 0, `portrait: critical labels below 9px: ${JSON.stringify(tinyPortraitText)}`);
+    invariant(await page.locator('.route-board').count() === 0, 'removed parallel-route overlay is still present');
     await page.screenshot({ path: path.join(OUT, 'phone-portrait.png'), fullPage: true });
+
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.waitForTimeout(150);
+    const shortPortrait = await layout(page, critical);
+    await requireLayout('short portrait', shortPortrait, 0.30);
+    const shortTooSmall = shortPortrait.critical.filter((item) => item.height < 36 || item.width < 36);
+    invariant(shortTooSmall.length === 0, `short portrait: critical touch targets below 36px: ${JSON.stringify(shortTooSmall)}`);
+    invariant(await page.locator('.route-board').count() === 0, 'short portrait: removed parallel-route overlay is still present');
+    await page.screenshot({ path: path.join(OUT, 'phone-short-320x568.png'), fullPage: true });
 
     await page.setViewportSize({ width: 844, height: 390 });
     await page.waitForTimeout(150);
@@ -175,7 +185,7 @@ async function requireFocusWrap(page, dialogSelector, label) {
     invariant(!(await page.locator('[data-dismiss-rotation]').isVisible()), 'dismissed rotation prompt repeated after reload');
 
     report.friction = { initialBlockingDialogs, firstCollectCoreActions, feedbackLatencyMs, escapeExitAndFocusRestore: true, pauseInputLeak: false, pauseFocusTrapAndRestore: true, bagDialogFocusTrapAndRestore: true, rotationPromptShown, rotationPromptDidNotRepeat: true };
-    report.checks = { hotspotLabel, desktop, portrait, landscape, movedTitle, saveChangedOnInspection: true, saveRestoredAfterReload: true, rotationPreservedRoot: true };
+    report.checks = { hotspotLabel, desktop, portrait, shortPortrait, landscape, movedTitle, saveChangedOnInspection: true, saveRestoredAfterReload: true, rotationPreservedRoot: true };
     invariant(report.consoleErrors.length === 0, `console errors: ${JSON.stringify(report.consoleErrors)}`);
     invariant(report.pageErrors.length === 0, `page errors: ${JSON.stringify(report.pageErrors)}`);
     invariant(report.badResponses.length === 0, `HTTP errors: ${JSON.stringify(report.badResponses)}`);
