@@ -1,0 +1,12 @@
+{
+  "name": "자정 주파수",
+  "short_name": "자정 주파수",
+  "description": "실제 기록과 합성 음성을 구별해 옥상의 하윤을 구조하는 폐방송국 미스터리",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#050303",
+  "theme_color": "#0b1420",
+  "lang": "ko"
+}
