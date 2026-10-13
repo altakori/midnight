@@ -4,7 +4,7 @@
 
 ## 플레이
 
-**https://altakori.github.io/undecided-character-playtest/**
+**https://altakori.github.io/midnight/**
 
 - 데스크톱과 모바일 브라우저 지원. 폰에서는 `가로 전체` 버튼 또는 직접 회전으로 가로 화면 권장
 - 키보드·마우스·터치 지원
@@ -18,7 +18,7 @@
 
 ## 테스트 피드백
 
-버그, 잘린 UI, 이해하기 어려운 단서·엔딩, 공개 방송의 목적, 음량 문제, 재미가 떨어지는 구간을 발견하면 [GitHub Issues](https://github.com/altakori/undecided-character-playtest/issues)에 남겨 주세요.
+버그, 잘린 UI, 이해하기 어려운 단서·엔딩, 공개 방송의 목적, 음량 문제, 재미가 떨어지는 구간을 발견하면 [GitHub Issues](https://github.com/altakori/midnight/issues)에 남겨 주세요.
 
 가능하면 다음 정보를 포함해 주세요.
 
